@@ -4,7 +4,7 @@ import { Canvas, useFrame, useLoader } from "@react-three/fiber"
 import { OrbitControls, Environment, Float } from "@react-three/drei"
 import { Suspense, useEffect, useState, useRef } from "react"
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm"
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader"
+import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 import { Button } from "@/components/ui/button"
 import { Upload } from "lucide-react"
@@ -15,23 +15,34 @@ function VRMModel({ url }: { url: string }) {
   const ref = useRef<THREE.Group>(null)
 
   useEffect(() => {
-    const loader = new GLTFLoader()
-    loader.register((parser: any) => new VRMLoaderPlugin(parser))
-    
-    loader.load(
-      url,
-      (gltf: any) => {
-        const vrm = gltf.userData.vrm as VRM
-        if (vrm) {
-          // Scale and position the model
-          vrm.scene.scale.setScalar(1)
-          vrm.scene.position.set(0, -1, 0)
-          setVrm(vrm)
-        }
-      },
-      (progress: any) => console.log('Loading progress:', progress),
-      (error: any) => console.error('Error loading VRM:', error)
-    )
+    const loadVRM = async () => {
+      try {
+        // Dynamic import for GLTFLoader
+        const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
+        
+        const loader = new GLTFLoader()
+        loader.register((parser: any) => new VRMLoaderPlugin(parser))
+        
+        loader.load(
+          url,
+          (gltf: any) => {
+            const vrm = gltf.userData.vrm as VRM
+            if (vrm) {
+              // Scale and position the model
+              vrm.scene.scale.setScalar(1)
+              vrm.scene.position.set(0, -1, 0)
+              setVrm(vrm)
+            }
+          },
+          (progress: any) => console.log('Loading progress:', progress),
+          (error: any) => console.error('Error loading VRM:', error)
+        )
+      } catch (error) {
+        console.error('Error importing GLTFLoader:', error)
+      }
+    }
+
+    loadVRM()
 
     return () => {
       if (vrm) {
