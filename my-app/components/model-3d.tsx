@@ -7,7 +7,7 @@ import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm"
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader"
 import * as THREE from "three"
 import { Button } from "@/components/ui/button"
-import { Upload, X } from "lucide-react"
+import { Upload } from "lucide-react"
 
 // VRM Model Component
 function VRMModel({ url }: { url: string }) {
@@ -91,15 +91,27 @@ function Scene({ vrmUrl }: { vrmUrl: string | null }) {
   )
 }
 
-export function Model3D({ height = "h-[50vh]" }: { height?: string }) {
+export function Model3D({ height = "h-64" }: { height?: string }) {
   const [isMounted, setIsMounted] = useState(false)
-  const [vrmUrl, setVrmUrl] = useState<string | null>("/model3d/1.vrm") // Load default VRM
+  // Option 1: Start with default model
+  const [vrmUrl, setVrmUrl] = useState<string | null>("/model3d/1.vrm")
+  // Option 2: Start with no model (uncomment line below and comment line above)
+  // const [vrmUrl, setVrmUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [isUsingDefaultModel, setIsUsingDefaultModel] = useState(true)
 
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  const handleScrollToGallery = () => {
+    const galleryElement = document.getElementById('model-gallery')
+    if (galleryElement) {
+      galleryElement.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      })
+    }
+  }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -107,28 +119,17 @@ export function Model3D({ height = "h-[50vh]" }: { height?: string }) {
       setIsLoading(true)
       const url = URL.createObjectURL(file)
       setVrmUrl(url)
-      setIsUsingDefaultModel(false)
       setIsLoading(false)
     } else {
       alert('Vui lòng chọn file .vrm')
     }
   }
 
-  const handleRemoveModel = () => {
-    if (vrmUrl && !isUsingDefaultModel) {
-      URL.revokeObjectURL(vrmUrl)
-    }
-    setVrmUrl(null)
-    setIsUsingDefaultModel(false)
-  }
-
-  const handleLoadDefaultModel = () => {
-    if (vrmUrl && !isUsingDefaultModel) {
-      URL.revokeObjectURL(vrmUrl)
-    }
-    setVrmUrl("/model3d/1.vrm")
-    setIsUsingDefaultModel(true)
-  }
+  // Easy customization comments:
+  // 1. To start with no model: Set vrmUrl initial state to null
+  // 2. To start with default model: Set vrmUrl initial state to "/model3d/1.vrm"
+  // 3. To change button behavior: Modify handleScrollToGallery function
+  // 4. To change welcome message: Edit the text in the !vrmUrl condition
 
   if (!isMounted) {
     return (
@@ -145,31 +146,10 @@ export function Model3D({ height = "h-[50vh]" }: { height?: string }) {
     <div className="w-full space-y-4">
       {/* File Upload Controls */}
       <div className="flex items-center gap-2 justify-center">
-        <label htmlFor="vrm-upload" className="cursor-pointer">
-          <Button asChild variant="outline" size="sm">
-            <div className="flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              Tải lên VRM khác
-            </div>
-          </Button>
-        </label>
-        <input
-          id="vrm-upload"
-          type="file"
-          accept=".vrm"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-        {!isUsingDefaultModel && (
-          <Button onClick={handleLoadDefaultModel} variant="outline" size="sm">
-            Model mặc định
-          </Button>
-        )}
-        {vrmUrl && (
-          <Button onClick={handleRemoveModel} variant="outline" size="sm">
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        <Button onClick={handleScrollToGallery} variant="outline" size="sm">
+          <Upload className="w-4 h-4 mr-2" />
+          Tải lên VRM Model
+        </Button>
       </div>
 
       {/* 3D Scene */}
@@ -182,16 +162,28 @@ export function Model3D({ height = "h-[50vh]" }: { height?: string }) {
             </div>
           </div>
         )}
-        <Canvas
-          camera={{ position: [0, 1, 3], fov: 50 }}
-          onCreated={({ gl }) => {
-            gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-          }}
-        >
-          <Suspense fallback={null}>
-            <Scene vrmUrl={vrmUrl} />
-          </Suspense>
-        </Canvas>
+        
+        {!vrmUrl ? (
+          /* Welcome message when no model - Show when vrmUrl is null */
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Welcome to VTuber Studio!</h2>
+              <p className="text-muted-foreground">Click "Tải lên VRM Model" to get started</p>
+            </div>
+          </div>
+        ) : (
+          /* 3D Canvas when model is loaded - Show when vrmUrl has value */
+          <Canvas
+            camera={{ position: [0, 1, 3], fov: 50 }}
+            onCreated={({ gl }) => {
+              gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+            }}
+          >
+            <Suspense fallback={null}>
+              <Scene vrmUrl={vrmUrl} />
+            </Suspense>
+          </Canvas>
+        )}
       </div>
     </div>
   )
