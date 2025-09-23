@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Updated theme colors in HSL format to match Tailwind config */
+  --background: 270 50% 98%;
+  --foreground: 270 15% 15%;
+  --card: 270 30% 96%;
+  --card-foreground: 270 15% 15%;
+  --popover: 270 50% 98%;
+  --popover-foreground: 270 15% 15%;
+  --primary: 270 60% 55%;
+  --primary-foreground: 270 50% 98%;
+  --secondary: 270 20% 92%;
+  --secondary-foreground: 270 30% 25%;
+  --muted: 270 30% 94%;
+  --muted-foreground: 270 20% 55%;
+  --accent: 240 50% 65%;
+  --accent-foreground: 270 50% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 270 50% 98%;
+  --border: 270 20% 88%;
+  --input: 270 20% 92%;
+  --ring: 270 60% 55%;
+  --chart-1: 270 60% 65%;
+  --chart-2: 240 50% 60%;
+  --chart-3: 210 40% 70%;
+  --chart-4: 180 35% 75%;
+  --chart-5: 150 30% 80%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  /* Dark theme with deep space-like colors */
+  --background: 270 20% 8%;
+  --foreground: 270 10% 92%;
+  --card: 270 25% 12%;
+  --card-foreground: 270 10% 92%;
+  --popover: 270 20% 8%;
+  --popover-foreground: 270 10% 92%;
+  --primary: 270 60% 65%;
+  --primary-foreground: 270 20% 8%;
+  --secondary: 270 30% 18%;
+  --secondary-foreground: 270 10% 92%;
+  --muted: 270 25% 15%;
+  --muted-foreground: 270 20% 65%;
+  --accent: 240 50% 70%;
+  --accent-foreground: 270 20% 8%;
+  --destructive: 0 70% 55%;
+  --destructive-foreground: 270 10% 92%;
+  --border: 270 30% 22%;
+  --input: 270 30% 18%;
+  --ring: 270 60% 65%;
+  --chart-1: 270 60% 65%;
+  --chart-2: 240 50% 70%;
+  --chart-3: 210 40% 75%;
+  --chart-4: 180 35% 80%;
+  --chart-5: 150 30% 85%;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Added custom animations for 3D elements */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.6);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
