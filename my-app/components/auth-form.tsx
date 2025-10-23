@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-
+import { useAuth} from "../context/authContext";
 type Props = {
   mode: "login" | "signup";
 };
@@ -27,6 +27,7 @@ type Props = {
  */
 
 export default function AuthForm({ mode }: Props) {
+  const {login, register} = useAuth();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,51 +46,82 @@ export default function AuthForm({ mode }: Props) {
     setLoading(true);
     setError(null);
 
+    // try {
+    //   const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
+    //   // Client-side validation: for signup ensure passwords match
+    //   if (mode === "signup" && password !== confirmPassword) {
+    //     setConfirmError("Mật khẩu không khớp");
+    //     setLoading(false);
+    //     return;
+    //   }
+    //   const body: any = { email, password };
+    //   if (mode === "signup") body.name = name;
+
+    //   const res = await fetch(endpoint, {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify(body),
+    //   });
+
+    //   const data = await res.json();
+
+    //   if (!res.ok || data?.ok === false) {
+    //     // backend might return HTTP 400/401 or 200 with ok:false
+    //     setError(data?.error || data?.message || `Request failed (${res.status})`);
+    //     setLoading(false);
+    //     return;
+    //   }
+
+    //   // Success: you can store token, redirect, or call any callback
+    //   // Example: if backend returns token in data.token
+    //   if (data.token) {
+    //     // Save token to localStorage (or set an HttpOnly cookie from backend)
+    //     try {
+    //       localStorage.setItem("authToken", data.token);
+    //     } catch (e) {
+    //       // localStorage may be disabled in some contexts
+    //     }
+    //   }
+
+    //   // Redirect to home or another protected page
+    //   router.push("/");
+    // } catch (err: any) {
+    //   setError(err?.message || "Unknown error");
+    // } finally {
+    //   setLoading(false);
+    // }
+
     try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
-      // Client-side validation: for signup ensure passwords match
-      if (mode === "signup" && password !== confirmPassword) {
-        setConfirmError("Mật khẩu không khớp");
-        setLoading(false);
-        return;
-      }
-      const body: any = { email, password };
-      if (mode === "signup") body.name = name;
+      if(mode === "login") {
+        await login(email, password);
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || data?.ok === false) {
-        // backend might return HTTP 400/401 or 200 with ok:false
-        setError(data?.error || data?.message || `Request failed (${res.status})`);
-        setLoading(false);
-        return;
-      }
-
-      // Success: you can store token, redirect, or call any callback
-      // Example: if backend returns token in data.token
-      if (data.token) {
-        // Save token to localStorage (or set an HttpOnly cookie from backend)
-        try {
-          localStorage.setItem("authToken", data.token);
-        } catch (e) {
-          // localStorage may be disabled in some contexts
+        router.push("/");
+      } else {
+        if (password !== confirmPassword) {
+          setConfirmError("Mat khau khoong khop");
+          setLoading(false);
+          return;
         }
-      }
 
-      // Redirect to home or another protected page
-      router.push("/");
-    } catch (err: any) {
-      setError(err?.message || "Unknown error");
+        const userData = {
+
+          username: name,
+          email: email,
+          password: password,
+        };
+
+        await register(userData);
+        alert("Đăng ký thành công! Vui lòng đăng nhập.");
+        router.push("/login");
+      }
+    } catch (err) {
+      setError("Đã xảy ra lỗi");
     } finally {
       setLoading(false);
     }
   };
+
+
 
   return (
     <div className="w-full max-w-[480px] mx-auto bg-white/80 dark:bg-gray-900/60 p-6 rounded-lg shadow">
@@ -209,7 +241,8 @@ export default function AuthForm({ mode }: Props) {
           </button>
         </div>
       </form>
-
+      
+      
       <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
         {mode === "login" ? (
           <>
