@@ -1,7 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Video, Users, Download, Settings } from "lucide-react"
+import { Video, Users, Download } from "lucide-react"
+import { UserNav } from "./user-nav"
 
 export function Navigation() {
   return (
@@ -26,10 +27,7 @@ export function Navigation() {
               <Download className="w-4 h-4 mr-2" />
               Models
             </Button>
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </Button>
+            <UserNav />
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">Start Stream</Button>
           </div>
         </div>

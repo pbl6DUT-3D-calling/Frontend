@@ -27,6 +27,24 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+/**
+ * Tự động xử lý lỗi 401 (Unauthorized)
+ * Nếu token hết hạn, tự động logout và chuyển về trang đăng nhập.
+ */
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Chỉ thực hiện nếu không phải là request login (tránh vòng lặp vô hạn)
+      if (!error.config.url.endsWith('/auth/login')) {
+        authService.logout();
+        window.location.href = '/login'; // Dùng window.location để đảm bảo refresh toàn bộ context
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 /**
  * Hàm lưu token và data user

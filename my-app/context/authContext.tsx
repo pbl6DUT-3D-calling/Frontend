@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     authService.logout();
     setUser(null);
-    window.location.href = '/login'; // Chuyển trang sau khi logout
+    router.push('/login'); // Chuyển trang sau khi logout
   };
 
   const googleLogin = () => {
