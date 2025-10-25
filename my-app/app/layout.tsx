@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/context/authContext"  
-
+import AuthWrapper from "@/components/AuthWrapper"
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 })
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "VTuber Studio",
   description: "Professional VTuber streaming platform with 3D avatars and real-time video calling",
   generator: "Next.js",
@@ -29,9 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
       <body className="min-h-screen bg-background font-sans antialiased">
-          <AuthProvider>
+          <AuthWrapper>
             {children}
-          </AuthProvider>
+          </AuthWrapper>
         </body>
     </html>
   )

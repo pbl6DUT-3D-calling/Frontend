@@ -2,14 +2,15 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth} from "../context/authContext";
 type Props = {
-  mode: "login" | "signup";
+  mode: "login" | "register";
 };
 
 /**
  * AuthForm
- * A reusable client-side authentication form used by the /login and /signup pages.
+ * A reusable client-side authentication form used by the /login and /register pages.
  *
  * Developer notes (backend integration):
  * - Login endpoint: POST /api/auth/login
@@ -29,6 +30,7 @@ type Props = {
 export default function AuthForm({ mode }: Props) {
   const {login, register} = useAuth();
   const router = useRouter();
+  const [fullName, setFullName] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,56 +47,11 @@ export default function AuthForm({ mode }: Props) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    // try {
-    //   const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/signup";
-    //   // Client-side validation: for signup ensure passwords match
-    //   if (mode === "signup" && password !== confirmPassword) {
-    //     setConfirmError("Mật khẩu không khớp");
-    //     setLoading(false);
-    //     return;
-    //   }
-    //   const body: any = { email, password };
-    //   if (mode === "signup") body.name = name;
-
-    //   const res = await fetch(endpoint, {
-    //     method: "POST",
-    //     headers: { "Content-Type": "application/json" },
-    //     body: JSON.stringify(body),
-    //   });
-
-    //   const data = await res.json();
-
-    //   if (!res.ok || data?.ok === false) {
-    //     // backend might return HTTP 400/401 or 200 with ok:false
-    //     setError(data?.error || data?.message || `Request failed (${res.status})`);
-    //     setLoading(false);
-    //     return;
-    //   }
-
-    //   // Success: you can store token, redirect, or call any callback
-    //   // Example: if backend returns token in data.token
-    //   if (data.token) {
-    //     // Save token to localStorage (or set an HttpOnly cookie from backend)
-    //     try {
-    //       localStorage.setItem("authToken", data.token);
-    //     } catch (e) {
-    //       // localStorage may be disabled in some contexts
-    //     }
-    //   }
-
-    //   // Redirect to home or another protected page
-    //   router.push("/");
-    // } catch (err: any) {
-    //   setError(err?.message || "Unknown error");
-    // } finally {
-    //   setLoading(false);
-    // }
+    setConfirmError(null);
 
     try {
       if(mode === "login") {
         await login(email, password);
-
         router.push("/");
       } else {
         if (password !== confirmPassword) {
@@ -104,7 +61,7 @@ export default function AuthForm({ mode }: Props) {
         }
 
         const userData = {
-
+          fullName: fullName,
           username: name,
           email: email,
           password: password,
@@ -115,7 +72,9 @@ export default function AuthForm({ mode }: Props) {
         router.push("/login");
       }
     } catch (err) {
-      setError("Đã xảy ra lỗi");
+      // Hiển thị lỗi từ backend (nếu có) hoặc lỗi chung
+      const errorMessage = err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -130,15 +89,27 @@ export default function AuthForm({ mode }: Props) {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {mode === "signup" && (
+        {mode === "register" && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Họ và tên</label>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2"
+              placeholder="Nguyễn Văn A"
+            />
+          </div>
+        )}
+        {mode === "register" && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Tên người dùng</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2"
-              placeholder="Your fullname"
+              placeholder="nguyenvana"
             />
           </div>
         )}
@@ -193,7 +164,7 @@ export default function AuthForm({ mode }: Props) {
           {passwordError && <div className="text-red-600 text-sm mt-1">{passwordError}</div>}
         </div>
 
-        {mode === "signup" && (
+        {mode === "register" && (
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Nhập lại mật khẩu</label>
             <div className="mt-1 flex items-center">
@@ -231,7 +202,7 @@ export default function AuthForm({ mode }: Props) {
             type="submit"
             disabled={
               loading ||
-              (mode === "signup" && (
+              (mode === "register" && (
                 !!passwordError || !!confirmError || password.length < MIN_PASSWORD_LENGTH
               ))
             }
@@ -246,11 +217,11 @@ export default function AuthForm({ mode }: Props) {
       <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
         {mode === "login" ? (
           <>
-            Chưa có tài khoản? <a href="/signup" className="text-indigo-600">Đăng ký</a>
+            Chưa có tài khoản? <Link href="/register" className="text-indigo-600 hover:underline">Đăng ký</Link>
           </>
         ) : (
           <>
-            Đã có tài khoản? <a href="/login" className="text-indigo-600">Đăng nhập</a>
+            Đã có tài khoản? <Link href="/login" className="text-indigo-600 hover:underline">Đăng nhập</Link>
           </>
         )}
       </div>
