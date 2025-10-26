@@ -2,6 +2,7 @@ import { VideoCallRoom } from "@/components/video-call-room"
 import { ModelGallery } from "@/components/model-gallery"
 import { Navigation } from "@/components/navigation"
 import { SectionWrapper } from "@/components/section-wrapper"
+import { Model3D } from "@/components/model-3d"
 
 
 
@@ -10,7 +11,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <Navigation />
       
-      {/* Hero Section với 3D Model
+      {/* Hero Section với 3D Model*/}
       <SectionWrapper 
         id="hero"
         title="VTuber Studio Platform"
@@ -18,8 +19,8 @@ export default function HomePage() {
         background="gradient"
         className="pt-20"
       >
-        <Model3D />
-      </SectionWrapper> */}
+        <Model3D></Model3D>
+      </SectionWrapper> 
 
       {/* Video Call Section */}
       <SectionWrapper 
