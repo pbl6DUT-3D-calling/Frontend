@@ -216,7 +216,10 @@ export default function AuthForm({ mode }: Props) {
 
         {mode === "login" && (
           <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-300">
-            Quên mật khẩu? <Link href="/forgot-password" className="text-indigo-600 hover:underline">Đặt lại mật khẩu</Link>
+            Quên mật khẩu? 
+            <Link href="/forgot-password" className="font-semibold text-indigo-600 hover:underline">
+              Đặt lại mật khẩu
+            </Link>
           </div>
         )}
       </div>
