@@ -13,6 +13,7 @@ function GoogleCallbackComponent() {
   const [isProcessing, setIsProcessing] = useState(true); // Bắt đầu là đang xử lý
 
   useEffect(() => {
+    console.log("Day la trang login-success")
     // === THÊM KIỂM TRA NÀY ===
     // Nếu không còn đang xử lý nữa thì không làm gì cả
     if (!isProcessing) return;

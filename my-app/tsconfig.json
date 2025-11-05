@@ -34,7 +34,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
-  ],
+, "components/CameraWidget.jsx"  ],
   "exclude": [
     "node_modules"
   ]

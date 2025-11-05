@@ -3,6 +3,7 @@ import { ModelGallery } from "@/components/model-gallery"
 import { Navigation } from "@/components/navigation"
 import { SectionWrapper } from "@/components/section-wrapper"
 import { Model3D } from "@/components/model-3d"
+import { VRMStudio } from "@/components/vrm-studio"
 
 
 
@@ -19,7 +20,7 @@ export default function HomePage() {
         background="gradient"
         className="pt-20"
       >
-        <Model3D></Model3D>
+        <VRMStudio></VRMStudio>
       </SectionWrapper> 
 
       {/* Video Call Section */}
