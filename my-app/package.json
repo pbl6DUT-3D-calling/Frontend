@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@pixiv/three-vrm": "^3.4.3",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/drawing_utils": "^0.3.1675466124",
+    "@mediapipe/holistic": "^0.5.1675471629",
+    "@pixiv/three-vrm": "^3.4.4",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -40,6 +43,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.3.0",
+    "@react-three/postprocessing": "^3.0.4",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
@@ -51,7 +55,10 @@
     "geist": "^1.5.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
+    "kalidokit": "^1.1.5",
+    "leva": "^0.10.0",
     "lucide-react": "^0.544.0",
+    "mediapipe": "^0.0.1-security",
     "next": "^15.5.3",
     "path": "0.12.7",
     "react": "^19.1.1",
@@ -66,7 +73,8 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.180.0",
     "vaul": "^1.1.2",
-    "zod": "3.25.67"
+    "zod": "3.25.67",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
