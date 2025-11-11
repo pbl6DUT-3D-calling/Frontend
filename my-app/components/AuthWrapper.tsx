@@ -9,7 +9,7 @@ interface AuthWrapperProps {
 }
 
 //Đinh nghĩa các route công khai không cần xác thực
-const publicRoute = ["/login", "/register", "/forgot-password"];
+const publicRoute = ["/login", "/register", "/forgot-password", "/reset-password", "/login-success"];
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   const pathname = usePathname();

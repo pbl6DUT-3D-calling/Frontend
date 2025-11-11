@@ -95,6 +95,7 @@ export default function AuthForm({ mode }: Props) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Họ và tên</label>
                 <input
+                  name="fullName"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
@@ -105,6 +106,7 @@ export default function AuthForm({ mode }: Props) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Tên người dùng</label>
                 <input
+                  name="username"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -118,6 +120,7 @@ export default function AuthForm({ mode }: Props) {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email</label>
             <input
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -131,6 +134,7 @@ export default function AuthForm({ mode }: Props) {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Mật khẩu</label>
             <div className="mt-1 flex items-center">
               <input
+                name="password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => {
@@ -170,6 +174,7 @@ export default function AuthForm({ mode }: Props) {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">Nhập lại mật khẩu</label>
               <div className="mt-1 flex items-center">
                 <input
+                  name="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => {
@@ -207,7 +212,7 @@ export default function AuthForm({ mode }: Props) {
                   !!passwordError || !!confirmError || password.length < MIN_PASSWORD_LENGTH
                 ))
               }
-              className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60"
+              className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? "Đang xử lý..." : mode === "login" ? "Đăng nhập" : "Đăng ký"}
             </button>
