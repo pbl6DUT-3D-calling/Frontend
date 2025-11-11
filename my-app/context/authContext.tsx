@@ -40,6 +40,7 @@ interface IAuthContext {
     handleGoogleCallback: (token: string) => Promise<User>;
     forgotPassword: (email: string) => Promise<any>;
     resetPassword: (token: string, newPassword: string) => Promise<any>;
+    refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<IAuthContext | null>(null);
@@ -146,6 +147,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return authService.resetPassword(token, newPassword);
     };
 
+    const refreshUser = async () => {
+        try {
+            console.log("RefreshUser called");
+            const userData = await authService.fetchUserProfile();
+            console.log("RefreshUser got data:", userData);
+            if (userData) {
+                setUser(userData);
+            } else {
+                console.error("RefreshUser: userData is null or undefined");
+            }
+        } catch (error) {
+            console.error("Refresh user error:", error);
+        }
+    };
+
     // Cung cấp giá trị (value)
     const value: IAuthContext = {
         user,
@@ -158,6 +174,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         handleGoogleCallback,
         forgotPassword,
         resetPassword,
+        refreshUser,
     };
 
     return (

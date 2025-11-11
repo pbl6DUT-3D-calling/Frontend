@@ -6,65 +6,99 @@ import { Suspense, useEffect, useState, useRef } from "react"
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" // Sửa: Đã xóa import tĩnh
 import * as THREE from "three"
 
-// VRM Model Component
-// Component này không thay đổi
+// VRM Model Component - Optimized
 function VRMModel({ url }: { url: string }) {
-  const [vrm, setVrm] = useState<any | null>(null) // Sửa: Đổi 'VRM' thành 'any'
+  const [vrm, setVrm] = useState<any | null>(null)
   const ref = useRef<THREE.Group>(null)
 
   useEffect(() => {
-    // Đảm bảo dọn dẹp vrm cũ khi url thay đổi
-    let loader: any; // Khai báo loader ở đây để có thể truy cập trong cleanup
+    if (!url) return;
+    
+    let isMounted = true;
+    let currentVrm: any = null;
 
     const loadVRM = async () => {
       try {
         const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js')
-        
-        // Sửa: Tải động VRMLoaderPlugin từ CDN
         const { VRMLoaderPlugin } = await import('@pixiv/three-vrm')
 
-        loader = new GLTFLoader()
+        const loader = new GLTFLoader()
         loader.register((parser: any) => new VRMLoaderPlugin(parser))
+        
+        // Add crossOrigin for Firebase Storage
+        loader.setCrossOrigin('anonymous');
         
         loader.load(
           url,
           (gltf: any) => {
-            const vrm = gltf.userData.vrm // Sửa: Xóa 'as VRM'
-            if (vrm) {
-              vrm.scene.scale.setScalar(1.5) // Tăng scale một chút cho dễ nhìn
-              vrm.scene.position.set(0, -1.5, 0) // Điều chỉnh vị trí y
-              setVrm(vrm)
+            if (!isMounted) return;
+            
+            const newVrm = gltf.userData.vrm
+            if (newVrm) {
+              // Scale và position
+              newVrm.scene.scale.setScalar(1.5)
+              newVrm.scene.position.set(0, -1.5, 0)
+              
+              // Xoay model quay mặt về phía camera (180 độ)
+              newVrm.scene.rotation.y = Math.PI
+              
+              // Set pose thả lỏng (không T-pose)
+              if (newVrm.humanoid) {
+                // Hạ tay xuống tự nhiên
+                const leftUpperArm = newVrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                const rightUpperArm = newVrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                const leftLowerArm = newVrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                const rightLowerArm = newVrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                
+                if (leftUpperArm) leftUpperArm.rotation.z = 0.3; // Hạ tay trái
+                if (rightUpperArm) rightUpperArm.rotation.z = -0.3; // Hạ tay phải
+                if (leftLowerArm) leftLowerArm.rotation.z = -0.2; // Cong khuỷu trái
+                if (rightLowerArm) rightLowerArm.rotation.z = 0.2; // Cong khuỷu phải
+              }
+              
+              currentVrm = newVrm;
+              setVrm(newVrm)
             }
           },
-          (progress: any) => console.log('Loading progress:', progress),
-          (error: any) => console.error('Error loading VRM:', error)
+          (progress: any) => {
+            console.log('Loading progress:', Math.round((progress.loaded / progress.total) * 100) + '%');
+          },
+          (error: any) => {
+            if (isMounted) {
+              console.error('Error loading VRM from:', url);
+              console.error('Error details:', error);
+              alert('Không thể load model. URL: ' + url);
+            }
+          }
         )
       } catch (error) {
-        console.error('Error importing GLTFLoader:', error)
+        if (isMounted) {
+          console.error('Error importing VRM loader:', error)
+        }
       }
     }
 
-    loadVRM()
+    loadVRM();
 
     return () => {
-      // Dọn dẹp model cũ khi component unmount hoặc url thay đổi
-      if (vrm) {
-        vrm.scene.traverse((obj: { geometry: { dispose: () => void }; material: { forEach: (arg0: (mat: any) => any) => void; dispose: () => void } }) => {
-            if (obj instanceof THREE.Mesh) {
-                obj.geometry.dispose();
-                if (Array.isArray(obj.material)) {
-                    obj.material.forEach(mat => mat.dispose());
-                } else {
-                    obj.material.dispose();
-                }
+      isMounted = false;
+      
+      // Cleanup
+      if (currentVrm) {
+        currentVrm.scene.traverse((obj: any) => {
+          if (obj instanceof THREE.Mesh) {
+            obj.geometry?.dispose();
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach((mat: any) => mat?.dispose());
+            } else {
+              obj.material?.dispose();
             }
+          }
         });
-        setVrm(null);
       }
-      // Bạn cũng có thể muốn hủy tiến trình load nếu nó đang diễn ra
-      // loader.abort(); // (cần check API của GLTFLoader)
+      setVrm(null);
     }
-  }, [url]) // Chạy lại effect khi `url` thay đổi
+  }, [url])
 
   useFrame((state, delta) => {
     if (vrm) {
@@ -76,7 +110,6 @@ function VRMModel({ url }: { url: string }) {
 }
 
 // Scene Component
-// Component này không thay đổi, nhưng thêm fallback cho suspense
 function Scene({ vrmUrl }: { vrmUrl: string }) {
   return (
     <>
@@ -87,7 +120,14 @@ function Scene({ vrmUrl }: { vrmUrl: string }) {
       <Suspense fallback={null}>
         <VRMModel url={vrmUrl} />
       </Suspense>
-      <OrbitControls enableZoom={true} enablePan={true} target-y={-0.5} />
+      {/* OrbitControls với target nhìn vào đầu nhân vật */}
+      <OrbitControls 
+        enableZoom={true} 
+        enablePan={true} 
+        target={[0, 0, 0]}
+        minDistance={1.5}
+        maxDistance={5}
+      />
     </>
   )
 }
@@ -150,6 +190,12 @@ export function Model3D({
           onCreated={({ gl }) => {
             gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
           }}
+          gl={{ 
+            preserveDrawingBuffer: true,
+            antialias: true,
+            powerPreference: "high-performance"
+          }}
+          dpr={[1, 2]} // Limit pixel ratio
           shadows
         >
           <Scene vrmUrl={vrmUrl} />

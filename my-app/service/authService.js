@@ -34,14 +34,19 @@ apiClient.interceptors.response.use(
 );
 
 const normalizeUserData = (user) => {
+  if (!user || typeof user !== 'object') {
+    console.error("normalizeUserData received invalid data:", user);
+    return null;
+  }
+  
   return {
     user_id: user.user_id,
     username: user.username,
-    fullName: user.full_name || user.fullName, // Hỗ trợ cả hai kiểu trả về
+    fullName: user.fullname || user.full_name || user.fullName, // Hỗ trợ fullname, full_name, fullName
     email: user.email,
     role: user.role,
-    avatar: user.avatar_url || user.avatar, // Hỗ trợ cả hai kiểu trả về
-    joinedAt: user.created_at || user.joinedAt, // Hỗ trợ cả hai kiểu trả về
+    avatar: user.avatar_url || user.avatar, // Hỗ trợ avatar_url, avatar
+    joinedAt: user.created_at || user.joinedAt, // Hỗ trợ created_at, joinedAt
     bio: user.bio || null,
   };
 };
@@ -104,13 +109,22 @@ export const authService = {
   },
   fetchUserProfile: async () => {
      try {
-       const response = await apiClient.get("/api/me"); 
-       const normalizedUser = normalizeUserData(response.data);
+       const response = await apiClient.get("/api/me");
+       console.log("API /api/me full response:", response);
+       console.log("API /api/me response.data:", response.data);
+       
+       // Check if response.data has user property
+       const userData = response.data.user || response.data;
+       console.log("User data to normalize:", userData);
+       
+       const normalizedUser = normalizeUserData(userData);
+       console.log("Normalized user:", normalizedUser);
        localStorage.setItem("data", JSON.stringify(normalizedUser));
        return normalizedUser; // Trả về user đã chuẩn hóa
 
      } catch (error) {
        console.error("Fetch User Profile Error:", error);
+       console.error("Error response:", error.response?.data);
        // Ném lỗi ra để AuthContext bắt
        throw new Error(error.response?.data?.error || "Không thể lấy thông tin người dùng.");
      }
