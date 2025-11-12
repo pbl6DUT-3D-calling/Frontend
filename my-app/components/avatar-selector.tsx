@@ -49,7 +49,9 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
     setIsLoading(true);
     try {
       const response = await modelService.getUserModels();
+      console.log("Raw API response:", response);
       const modelsArray = Array.isArray(response) ? response : (response.models || []);
+      console.log("Models array:", modelsArray);
       
       const convertedModels: ModelItem[] = modelsArray.map((model: any) => ({
         id: model.id?.toString() || crypto.randomUUID(),
@@ -58,6 +60,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
         thumbnailUrl: model.thumbnail_url || model.thumbnailUrl || "https://placehold.co/150x150/a78bfa/ffffff?text=VRM",
       }));
 
+      console.log("Converted models:", convertedModels);
       setModels(convertedModels);
     } catch (error) {
       console.error("Failed to load models:", error);
@@ -67,6 +70,8 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
   };
 
   const handleSelectModel = (model: ModelItem) => {
+    console.log("Selected model:", model);
+    console.log("VRM URL:", model.vrmUrl);
     setSelectedModel(model);
     // Delay để tránh tạo Canvas quá nhanh
     setTimeout(() => setShow3DPreview(true), 100);
@@ -74,7 +79,8 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
 
   const handleConfirm = () => {
     if (selectedModel) {
-      onSelect(selectedModel.thumbnailUrl);
+      // Trả về vrmUrl để load model 3D, không phải thumbnailUrl
+      onSelect(selectedModel.vrmUrl);
       setShow3DPreview(false); // Dispose canvas trước khi đóng
       setTimeout(() => onClose(), 100);
     }
@@ -153,7 +159,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
             <h3 className="text-sm font-semibold text-purple-700 mb-3">Xem trước</h3>
             
             <div className="flex-1 bg-gradient-to-br from-purple-100 to-purple-50 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center overflow-hidden">
-              {selectedModel && show3DPreview ? (
+              {selectedModel && show3DPreview && selectedModel.vrmUrl ? (
                 <div className="w-full h-full flex flex-col">
                   {/* 3D Preview Viewer */}
                   <div className="flex-1 relative">
@@ -175,7 +181,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                         <ambientLight intensity={0.8} />
                         <directionalLight position={[5, 5, 5]} intensity={1} />
                         <directionalLight position={[-5, 5, -5]} intensity={0.5} />
-                        <VRMAvatar vrmUrl={selectedModel.vrmUrl} />
+                        <VRMAvatar avatar={selectedModel.vrmUrl} />
                         <OrbitControls
                           enableZoom={true}
                           enablePan={false}
@@ -198,6 +204,14 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                       Nhấn "Xác nhận" để sử dụng làm avatar
                     </p>
                   </div>
+                </div>
+              ) : selectedModel && show3DPreview ? (
+                <div className="text-center space-y-4 p-6">
+                  <div className="w-48 h-48 mx-auto rounded-2xl bg-red-100 flex items-center justify-center">
+                    <span className="text-6xl text-red-400">❌</span>
+                  </div>
+                  <p className="text-sm text-red-600 font-medium">Model URL không hợp lệ</p>
+                  <p className="text-xs text-gray-500 break-all">{selectedModel.vrmUrl || "undefined"}</p>
                 </div>
               ) : selectedModel ? (
                 <div className="text-center space-y-4 p-6">

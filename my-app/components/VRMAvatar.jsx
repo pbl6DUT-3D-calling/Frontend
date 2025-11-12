@@ -14,8 +14,11 @@ const tmpQuat = new Quaternion();
 const tmpEuler = new Euler();
 
 export const VRMAvatar = ({ avatar, ...props }) => {
+  // Support both local path and full URL
+  const modelPath = avatar?.startsWith('http') ? avatar : `models/${avatar}`;
+  
   const { scene, userData } = useGLTF(
-    `models/${avatar}`,
+    modelPath,
     undefined,
     undefined,
     (loader) => {

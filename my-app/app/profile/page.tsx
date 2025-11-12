@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Save, Loader2 } from "lucide-react";
 import axios from "axios";
-import { AvatarSelector } from "@/components/avatar-selector";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
 
@@ -28,7 +27,6 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isLoggedIn) {
@@ -51,13 +49,6 @@ export default function ProfilePage() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
-    });
-  };
-
-  const handleAvatarSelect = (avatarUrl: string) => {
-    setFormData({
-      ...formData,
-      avatar_url: avatarUrl,
     });
   };
 
@@ -231,17 +222,19 @@ export default function ProfilePage() {
                 </Avatar>
                 
                 {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAvatarSelector(true)}
-                    className="absolute bottom-0 right-0 bg-purple-600 text-white p-2 rounded-full cursor-pointer hover:bg-purple-700 transition-colors"
-                  >
+                  <label className="absolute bottom-0 right-0 bg-purple-600 text-white p-2 rounded-full cursor-pointer hover:bg-purple-700 transition-colors">
                     <Camera className="w-5 h-5" />
-                  </button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                    />
+                  </label>
                 )}
               </div>
               <p className="mt-3 text-sm text-gray-500">
-                {isEditing ? "Click vào icon camera để chọn avatar từ thư viện" : ""}
+                {isEditing ? "Click vào icon camera để upload ảnh avatar" : ""}
               </p>
             </div>
 
@@ -359,14 +352,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Avatar Selector Dialog */}
-      <AvatarSelector
-        isOpen={showAvatarSelector}
-        onClose={() => setShowAvatarSelector(false)}
-        onSelect={handleAvatarSelect}
-        currentAvatar={formData.avatar_url}
-      />
     </div>
   );
 }

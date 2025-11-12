@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Upload, Plus, CheckCircle, X, Trash2 } from "lucide-react"
 import { modelService } from "@/service/modelService" // Import model service
+import { AvatarSelector } from "@/components/avatar-selector" // Import AvatarSelector
 // Sửa: Đã xóa import tĩnh
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" 
 
@@ -336,15 +337,7 @@ export function VRMStudio() {
       {/* Các nút điều khiển */}
       <div className="flex items-center gap-4 justify-center">
         <Button 
-          onClick={() => {
-            setShowModal(true);
-            // Khi mở modal, set preview là model hiện tại
-            const currentModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
-            if (currentModel) {
-              setSelectedInModal(currentModel.id);
-              setPreviewInModalUrl(currentModel.vrmUrl);
-            }
-          }} 
+          onClick={() => setShowModal(true)} 
           variant="outline" 
           size="lg"
         >
@@ -360,117 +353,23 @@ export function VRMStudio() {
         </Button>
       </div>
 
-      {/* ==== Modal "Tủ đồ" ==== */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Chọn Avatar</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full overflow-hidden">
-            {/* Cột 1: Danh sách model */}
-            <div className="md:col-span-1 h-full overflow-y-auto pr-2 space-y-2">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Thư viện của bạn</p>
-              
-              {/* Nút Upload trong Modal */}
-              <button
-                onClick={triggerFileInput}
-                disabled={isUploading}
-                className="w-full h-24 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {isUploading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <span>Đang xử lý...</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-8 h-8" />
-                    <span>Tải lên model mới</span>
-                  </>
-                )}
-              </button>
-
-              {/* Grid danh sách model */}
-              <div className="grid grid-cols-3 gap-2">
-                {modelList.map((model) => (
-                  <div key={model.id} className="relative group">
-                    <button
-                      onClick={() => handleSelectModel(model)}
-                      className={`w-full aspect-square rounded-lg overflow-hidden border-2 ${
-                        selectedInModal === model.id 
-                          ? 'border-primary shadow-lg scale-105' 
-                          : 'border-transparent hover:border-primary/50'
-                      } transition-all duration-200 hover:scale-105`}
-                    >
-                      <img
-                        src={model.thumbnailUrl}
-                        alt={model.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => (e.currentTarget.src = 'https://placehold.co/150x150/f87171/ffffff?text=Error')}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-1">
-                        <p className="text-white text-xs truncate">{model.name}</p>
-                      </div>
-                      {selectedInModal === model.id && (
-                        <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                          <CheckCircle className="w-4 h-4 text-white" />
-                        </div>
-                      )}
-                    </button>
-                    
-                    {/* Nút xóa - chỉ hiện khi hover và không phải model mặc định */}
-                    {!model.id.startsWith("local-") && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteModel(model.id, model.name);
-                        }}
-                        className="absolute top-1 left-1 bg-red-500 hover:bg-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                        title="Xóa model"
-                      >
-                        <Trash2 className="w-3 h-3 text-white" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cột 2: Preview - Chỉ dùng thumbnail */}
-            <div className="md:col-span-2 h-full rounded-lg bg-muted border overflow-hidden relative flex items-center justify-center">
-              {selectedInModal ? (
-                <div className="text-center">
-                  <img 
-                    src={modelList.find(m => m.id === selectedInModal)?.thumbnailUrl || ""} 
-                    alt="Preview"
-                    className="max-w-full max-h-[60%] object-contain mb-4 rounded-lg shadow-lg"
-                  />
-                  <p className="text-lg font-semibold">
-                    {modelList.find(m => m.id === selectedInModal)?.name || "Unknown"}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Click "Xác nhận" để load model 3D
-                  </p>
-                </div>
-              ) : (
-                <p className="text-muted-foreground">Chọn một model để preview</p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowModal(false)}>
-              <X className="w-4 h-4 mr-2" />
-              Hủy
-            </Button>
-            <Button onClick={confirmSelection}>
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Xác nhận & Sử dụng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Avatar Selector Dialog */}
+      <AvatarSelector
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSelect={(vrmUrl) => {
+          // Khi user chọn model, load model đó vào scene chính
+          setCurrentVrmUrl(vrmUrl);
+          setIsLoading(true);
+          setShowModal(false);
+          
+          // Đợi model load xong rồi tắt loading
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 2000);
+        }}
+        currentAvatar={currentVrmUrl || undefined}
+      />
 
       {/* Dialog Đặt tên Model khi Upload */}
       <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
