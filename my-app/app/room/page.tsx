@@ -137,7 +137,7 @@ export default function Page() {
 
   return (
     <LiveKitRoom
-      video={true} // Quan trọng: Để LiveKit tự động tạo track video
+      video={true} 
       audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
@@ -263,7 +263,7 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
             fontWeight: 'bold',
           }}
         >
-          {is3DEnabled ? '3D Mode ON' : '2D Mode'}
+          {is3DEnabled ? 'VTuber Mode' : 'Camera Mode'}
         </button>
       </div>
     </>
