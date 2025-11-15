@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { VRM, VRMExpressionPresetName, VRMLoaderPlugin } from '@pixiv/three-vrm';
+import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { animateVRMFace } from './vrmRigging';
 
@@ -12,11 +12,9 @@ interface VRMVideoPublisherProps {
 }
 
 const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
-  
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const webglCanvasRef = useRef<HTMLCanvasElement>(null);
+  const output2DCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  
-  const canvasStreamRef = useRef<MediaStream | null>(null);
   
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -25,75 +23,147 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
   const clockRef = useRef(new THREE.Clock());
   
   const faceMeshRef = useRef<any>(null);
-  const faceMeshScriptLoadedRef = useRef(false);
   const faceMeshInitializingRef = useRef(false);
   
-  const animationFrameRef = useRef<number>();
-  const inferenceTimeoutRef = useRef<NodeJS.Timeout>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
+  const inferenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  
+  const sceneInitializedRef = useRef(false);
+  const vrmLoadingRef = useRef(false);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [faceMeshScriptLoaded, setFaceMeshScriptLoaded] = useState(false);
+  const [faceMeshReady, setFaceMeshReady] = useState(false);
 
-  // 1. Setup Three.js Scene (only once)
+  // Force clear khi toggle mode
   useEffect(() => {
-    if (sceneRef.current) return;
+    if (output2DCanvasRef.current) {
+      const ctx = output2DCanvasRef.current.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, output2DCanvasRef.current.width, output2DCanvasRef.current.height);
+      }
+    }
+  }, [enabled]);
 
-    console.log('Setting up Three.js scene...');
+  // 1. Setup Three.js Scene
+  useEffect(() => {
+    if (sceneInitializedRef.current || sceneRef.current || !webglCanvasRef.current) {
+      return;
+    }
+
+    sceneInitializedRef.current = true;
 
     sceneRef.current = new THREE.Scene();
-    // Nền trong suốt để có thể vẽ video bên dưới nếu cần
-    // sceneRef.current.background = new THREE.Color(0x212121);
-    cameraThreeRef.current = new THREE.PerspectiveCamera(30, 640 / 480, 0.1, 20); // Camera cho model 3D
-    cameraThreeRef.current.position.set(0, 1.3, 1.5);
+    sceneRef.current.background = new THREE.Color(0x212121);
+    
+    const CANVAS_WIDTH = 1280;
+    const CANVAS_HEIGHT = 720;
+    const aspect = CANVAS_WIDTH / CANVAS_HEIGHT;
 
-    if (!canvasRef.current) return;
+    cameraThreeRef.current = new THREE.PerspectiveCamera(30, aspect, 0.1, 20);
+    cameraThreeRef.current.position.set(0, 1.4, 2.5);
+    cameraThreeRef.current.lookAt(0, 1.3, 0);
 
     rendererRef.current = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
-      alpha: true,
+      canvas: webglCanvasRef.current,
+      alpha: false,
+      antialias: true,
       preserveDrawingBuffer: true,
     });
-    rendererRef.current.setSize(640, 480);
-    rendererRef.current.setPixelRatio(window.devicePixelRatio);
+    rendererRef.current.setSize(CANVAS_WIDTH, CANVAS_HEIGHT);
+    rendererRef.current.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererRef.current.shadowMap.enabled = true;
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(1, 1, 1).normalize();
-    sceneRef.current.add(light);
+    const directionalLight1 = new THREE.DirectionalLight(0xffffff, 2);
+    directionalLight1.position.set(10, 10, 5);
+    sceneRef.current.add(directionalLight1);
+
+    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight2.position.set(-10, 10, 5);
+    sceneRef.current.add(directionalLight2);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     sceneRef.current.add(ambientLight);
 
-    const loader = new GLTFLoader();
-    loader.register((parser) => new VRMLoaderPlugin(parser));
-
-    console.log('Loading VRM model...');
-    
-    loader.load(
-      '/model3d/1.vrm',
-      (gltf) => {
-        if (!sceneRef.current) {
-          console.log('Scene disposed, skipping VRM setup');
-          return;
-        }
-
-        const vrm = gltf.userData.vrm as VRM;
-        vrmRef.current = vrm;
-        sceneRef.current.add(vrm.scene);
-        vrm.scene.position.y = -1;
-        setIsLoading(false);
-        console.log('VRM model loaded');
-      },
-      undefined,
-      (error) => {
-        console.error('Error loading VRM:', error);
-        setIsLoading(false);
+    const loadVRM = async () => {
+      if (vrmLoadingRef.current || vrmRef.current) {
+        return;
       }
-    );
+
+      vrmLoadingRef.current = true;
+
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+      
+      loader.load(
+        '/model3d/1.vrm',
+        (gltf) => {
+          if (!sceneRef.current) {
+            vrmLoadingRef.current = false;
+            return;
+          }
+
+          if (vrmRef.current) {
+            sceneRef.current.remove(vrmRef.current.scene);
+            vrmRef.current = null;
+          }
+
+          const vrm = gltf.userData.vrm as VRM;
+          
+          VRMUtils.removeUnnecessaryVertices(gltf.scene);
+          VRMUtils.combineSkeletons(gltf.scene);
+          
+          vrm.scene.traverse((obj) => {
+            obj.frustumCulled = false;
+          });
+          
+          vrmRef.current = vrm;
+          sceneRef.current.add(vrm.scene);
+
+          vrm.scene.rotation.y = Math.PI;
+          
+          const box = new THREE.Box3().setFromObject(vrm.scene);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          
+          vrm.scene.position.set(0, 0, 0);
+          
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const fov = cameraThreeRef.current!.fov * (Math.PI / 180);
+          let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+          
+          cameraZ *= 1.3;
+          
+          const headHeight = center.y + size.y * 0.35;
+          
+          if (cameraThreeRef.current) {
+            const offsetX = 0.2;
+            const offsetY = 0;
+            cameraThreeRef.current.position.set(offsetX, headHeight + offsetY, cameraZ * 0.6);
+            cameraThreeRef.current.lookAt(offsetX, headHeight - 0.1 + offsetY, 0);
+          }
+          
+          vrmLoadingRef.current = false;
+          setIsLoading(false);
+        },
+        undefined,
+        (error) => {
+          console.error('Error loading VRM:', error);
+          vrmLoadingRef.current = false;
+          setIsLoading(false);
+        }
+      );
+    };
+
+    loadVRM();
 
     return () => {
-      console.log('Cleaning up Three.js');
+      sceneInitializedRef.current = false;
+      vrmLoadingRef.current = false;
       
-      if (vrmRef.current) {
+      if (vrmRef.current && sceneRef.current) {
+        sceneRef.current.remove(vrmRef.current.scene);
         vrmRef.current = null;
       }
       
@@ -107,37 +177,43 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         sceneRef.current = null;
       }
       
-      if (cameraThreeRef.current) {
-        cameraThreeRef.current = null;
-      }
+      cameraThreeRef.current = null;
     };
   }, []);
 
-  // 2. Setup Camera (only once)
+  // 2. Setup Camera
   useEffect(() => {
     let mounted = true;
 
     if (webcamStream && videoRef.current) {
-      console.log('Attaching webcam stream to video element...');
       videoRef.current.srcObject = webcamStream;
-      videoRef.current.onloadedmetadata = async () => { // Dùng onloadedmetadata để chắc chắn video đã sẵn sàng
+      
+      videoRef.current.onloadedmetadata = async () => {
         if (!mounted) return;
-        await videoRef.current.play();
         
-        console.log('Camera ready');
-        setIsCameraReady(true);
+        try {
+          await videoRef.current!.play();
+          setIsCameraReady(true);
+        } catch (error) {
+          console.error('Error playing video:', error);
+        }
       };
+
+      if (videoRef.current.readyState >= videoRef.current.HAVE_CURRENT_DATA) {
+        videoRef.current.play().catch(e => console.error('Error auto-playing:', e));
+        setIsCameraReady(true);
+      }
     } else {
-      // Nếu không có stream (lúc đầu hoặc khi tắt), dừng video và reset state
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
       setIsCameraReady(false);
     }
 
     return () => {
-      console.log('Cleaning up camera effect');
       mounted = false;
       if (videoRef.current) {
-        // Không stop track ở đây vì nó được quản lý bởi LiveKit
+        videoRef.current.pause();
         videoRef.current.srcObject = null;
       }
     };
@@ -145,27 +221,22 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
 
   // 3. Load FaceMesh Script
   useEffect(() => {
-    if (!enabled) return;
-    if (faceMeshScriptLoadedRef.current) return;
+    if (!enabled || faceMeshScriptLoaded) return;
 
     let mounted = true;
 
     const loadFaceMeshScript = async () => {
       if ((window as any).FaceMesh) {
-        console.log('FaceMesh already available');
         if (mounted) {
-          faceMeshScriptLoadedRef.current = true;
+          setFaceMeshScriptLoaded(true);
         }
         return;
       }
 
       const existingScript = document.querySelector('script[src*="face_mesh.js"]');
       if (existingScript) {
-        console.log('FaceMesh script already loading...');
         return;
       }
-
-      console.log('Loading FaceMesh from CDN...');
       
       try {
         await new Promise<void>((resolve, reject) => {
@@ -175,9 +246,8 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
           script.async = true;
           
           script.onload = () => {
-            console.log('FaceMesh script loaded');
             if (mounted) {
-              faceMeshScriptLoadedRef.current = true;
+              setFaceMeshScriptLoaded(true);
             }
             resolve();
           };
@@ -199,13 +269,12 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     return () => {
       mounted = false;
     };
-  }, [enabled]);
+  }, [enabled, faceMeshScriptLoaded]);
 
   // 4. Initialize FaceMesh
   useEffect(() => {
     if (!enabled) {
       if (faceMeshRef.current) {
-        console.log('Closing FaceMesh (disabled)');
         try {
           faceMeshRef.current.close?.();
         } catch (e) {
@@ -213,22 +282,12 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         }
         faceMeshRef.current = null;
         faceMeshInitializingRef.current = false;
+        setFaceMeshReady(false);
       }
       return;
     }
 
-    if (faceMeshRef.current) {
-      console.log('FaceMesh already initialized');
-      return;
-    }
-
-    if (!faceMeshScriptLoadedRef.current) {
-      console.log('Waiting for FaceMesh script...');
-      return;
-    }
-
-    if (faceMeshInitializingRef.current) {
-      console.log('FaceMesh already initializing...');
+    if (faceMeshRef.current || !faceMeshScriptLoaded || faceMeshInitializingRef.current) {
       return;
     }
 
@@ -241,14 +300,11 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
 
       const FaceMesh = (window as any).FaceMesh;
       if (!FaceMesh) {
-        console.warn('FaceMesh not available');
         faceMeshInitializingRef.current = false;
         return;
       }
 
       try {
-        console.log('Initializing FaceMesh...');
-        
         const faceMesh = new FaceMesh({
           locateFile: (file: string) =>
             `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -268,7 +324,8 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         });
 
         faceMesh.onResults((results: any) => {
-          if (!vrmRef.current || !videoRef.current) return;
+          if (!vrmRef.current || !videoRef.current || !enabled) return;
+          
           const deltaTime = clockRef.current.getDelta();
           animateVRMFace(vrmRef.current, results, videoRef.current, deltaTime);
         });
@@ -283,7 +340,7 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         
         faceMeshRef.current = faceMesh;
         faceMeshInitializingRef.current = false;
-        console.log('FaceMesh initialized');
+        setFaceMeshReady(true);
       } catch (error) {
         console.error('Error initializing FaceMesh:', error);
         faceMeshInitializingRef.current = false;
@@ -295,7 +352,6 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     return () => {
       mounted = false;
       if (faceMeshRef.current) {
-        console.log('Closing FaceMesh (cleanup)');
         try {
           faceMeshRef.current.close?.();
         } catch (e) {
@@ -304,73 +360,111 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         faceMeshRef.current = null;
       }
       faceMeshInitializingRef.current = false;
+      setFaceMeshReady(false);
     };
-  }, [enabled, faceMeshScriptLoadedRef.current]);
+  }, [enabled, faceMeshScriptLoaded]);
 
-  // 6. Canvas Render Loop
+  // 5. Canvas Render Loop
   useEffect(() => {
-    // Vòng lặp render chỉ cần camera sẵn sàng và không loading để bắt đầu.
-    // Việc vẽ hay không sẽ được quyết định bên trong vòng lặp.
-    if (!canvasRef.current || !videoRef.current || !isCameraReady || isLoading) {
+    if (!output2DCanvasRef.current || !videoRef.current) {
       return;
     }
 
     let isActive = true;
-    let lastTime = performance.now();
 
-    const render = (currentTime: number) => {
-      if (!isActive || !canvasRef.current || !videoRef.current) return;
+    const render = () => {
+      if (!isActive || !output2DCanvasRef.current || !videoRef.current) return;
 
-      const deltaTime = (currentTime - lastTime) / 1000;
-      lastTime = currentTime;
+      const ctx = output2DCanvasRef.current.getContext('2d');
+      if (!ctx) return;
 
+      ctx.clearRect(0, 0, output2DCanvasRef.current.width, output2DCanvasRef.current.height);
+
+      // 3D MODE
       if (enabled) {
-        // --- Chế độ 3D: Render scene VRM ---
-        if (!isLoading && rendererRef.current && sceneRef.current && cameraThreeRef.current) {
-          // Chỉ render 3D nếu camera cũng đang bật
-          if (webcamStream) {
-            if (vrmRef.current) {
-              vrmRef.current.update(deltaTime);
-            }
-            rendererRef.current.clear();
-            rendererRef.current.render(sceneRef.current, cameraThreeRef.current);
+        if (isCameraReady && webcamStream && !isLoading && vrmRef.current && 
+            rendererRef.current && sceneRef.current && cameraThreeRef.current && webglCanvasRef.current) {
+          
+          const deltaTime = clockRef.current.getDelta();
+          vrmRef.current.update(deltaTime);
+          rendererRef.current.render(sceneRef.current, cameraThreeRef.current);
+          
+          ctx.save();
+          ctx.scale(-1, 1);
+          ctx.drawImage(webglCanvasRef.current, -output2DCanvasRef.current.width, 0);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = '#212121';
+          ctx.fillRect(0, 0, output2DCanvasRef.current.width, output2DCanvasRef.current.height);
+          
+          if (isLoading) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading 3D Model...', output2DCanvasRef.current.width / 2, output2DCanvasRef.current.height / 2);
           }
         }
-      } else {
-        // --- Chế độ 2D: Vẽ video trực tiếp lên canvas ---
-        // Chỉ vẽ video nếu camera đang bật và có đủ dữ liệu
-        if (webcamStream && videoRef.current.readyState >= videoRef.current.HAVE_ENOUGH_DATA) {
-          const ctx = canvasRef.current?.getContext('2d');
-          if (ctx) {
-            ctx.save();
-            ctx.scale(-1, 1); // Lật ngang để tạo hiệu ứng gương
-            ctx.drawImage(videoRef.current, -canvasRef.current.width, 0, canvasRef.current.width, canvasRef.current.height);
-            ctx.restore();
+      } 
+      // 2D MODE
+      else {
+        const canDrawVideo = isCameraReady && 
+                             webcamStream && 
+                             videoRef.current.readyState >= videoRef.current.HAVE_CURRENT_DATA && 
+                             videoRef.current.videoWidth > 0 && 
+                             videoRef.current.videoHeight > 0;
+
+        if (canDrawVideo) {
+          ctx.drawImage(
+            videoRef.current, 
+            0, 
+            0, 
+            output2DCanvasRef.current.width, 
+            output2DCanvasRef.current.height
+          );
+        } else {
+          ctx.fillStyle = '#212121';
+          ctx.fillRect(0, 0, output2DCanvasRef.current.width, output2DCanvasRef.current.height);
+          
+          let message = 'Waiting for camera...';
+          if (!webcamStream) {
+            message = 'No camera stream';
+          } else if (!isCameraReady) {
+            message = 'Camera initializing...';
           }
+          
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '16px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(message, output2DCanvasRef.current.width / 2, output2DCanvasRef.current.height / 2);
         }
-      }      
+      }
       
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
-    console.log('Canvas render loop started');
     animationFrameRef.current = requestAnimationFrame(render);
 
     return () => {
-      console.log('Canvas render loop stopped');
       isActive = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = undefined;
       }
+      
+      if (output2DCanvasRef.current) {
+        const ctx = output2DCanvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, output2DCanvasRef.current.width, output2DCanvasRef.current.height);
+        }
+      }
     };
-    // Bỏ isCameraEnabled khỏi dependencies để vòng lặp không bị hủy và tạo lại.
-    // Vòng lặp sẽ luôn chạy, chỉ có việc vẽ bên trong là có điều kiện.
-  }, [enabled, isCameraReady, isLoading, webcamStream]);
+  }, [enabled, isCameraReady, webcamStream, isLoading]);
 
-  // 7. Face Tracking Loop
+  // 6. Face Tracking Loop
   useEffect(() => {
-    if (!enabled || !isCameraReady || !faceMeshRef.current || !videoRef.current || !webcamStream) {
+    if (!enabled || !isCameraReady || !faceMeshReady || !videoRef.current || !webcamStream) {
       if (inferenceTimeoutRef.current) {
         clearTimeout(inferenceTimeoutRef.current);
         inferenceTimeoutRef.current = undefined;
@@ -384,7 +478,9 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
       if (!isActive || !faceMeshRef.current || !videoRef.current) return;
 
       try {
-        await faceMeshRef.current.send({ image: videoRef.current });
+        if (videoRef.current.readyState >= videoRef.current.HAVE_ENOUGH_DATA) {
+          await faceMeshRef.current.send({ image: videoRef.current });
+        }
       } catch (error) {
         console.error('Face tracking error:', error);
       }
@@ -394,18 +490,16 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
       }
     };
 
-    console.log('Face tracking started');
     runInference();
 
     return () => {
-      console.log('Face tracking stopped');
       isActive = false;
       if (inferenceTimeoutRef.current) {
         clearTimeout(inferenceTimeoutRef.current);
         inferenceTimeoutRef.current = undefined;
       }
     };
-  }, [enabled, isCameraReady, webcamStream]);
+  }, [enabled, isCameraReady, webcamStream, faceMeshReady]);
 
   return (
     <>
@@ -414,15 +508,52 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         style={{ display: 'none' }}
         playsInline
         muted
+        autoPlay
       />
 
       <canvas
-        id="vrm-canvas" // Thêm ID để dễ dàng tìm thấy
-        ref={canvasRef}
-        width={640}
-        height={480}
-        style={{ display: 'none' }} // Canvas vẫn ẩn, chúng ta chỉ cần stream từ nó
+        ref={webglCanvasRef}
+        width={1280}
+        height={720}
+        style={{ display: 'none' }}
       />
+
+      <canvas
+        id="vrm-canvas"
+        ref={output2DCanvasRef}
+        width={1280}
+        height={720}
+        style={{ display: 'none' }}
+      />
+
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{ 
+          position: 'fixed', 
+          bottom: '100px', 
+          right: '10px',
+          color: 'white',
+          background: 'rgba(0,0,0,0.9)',
+          padding: '15px',
+          borderRadius: '8px',
+          fontSize: '12px',
+          fontFamily: 'monospace',
+          zIndex: 9999,
+          minWidth: '200px',
+        }}>
+          <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '14px' }}>
+            Debug Info
+          </div>
+          <div>3D Enabled: <span style={{ color: enabled ? '#10b981' : '#ef4444' }}>{enabled ? '✓' : '✗'}</span></div>
+          <div>Camera Ready: <span style={{ color: isCameraReady ? '#10b981' : '#ef4444' }}>{isCameraReady ? '✓' : '✗'}</span></div>
+          <div>VRM Loaded: <span style={{ color: !isLoading && vrmRef.current ? '#10b981' : '#ef4444' }}>{!isLoading && vrmRef.current ? '✓' : '✗'}</span></div>
+          <div>FaceMesh Ready: <span style={{ color: faceMeshReady ? '#10b981' : '#ef4444' }}>{faceMeshReady ? '✓' : '✗'}</span></div>
+          <div>Webcam: <span style={{ color: webcamStream ? '#10b981' : '#ef4444' }}>{webcamStream ? '✓' : '✗'}</span></div>
+          <div>Video Ready: <span style={{ color: videoRef.current?.readyState === 4 ? '#10b981' : '#ef4444' }}>
+            {videoRef.current?.readyState || 0}
+          </span></div>
+          <div>Video Size: {videoRef.current?.videoWidth || 0}x{videoRef.current?.videoHeight || 0}</div>
+        </div>
+      )}
 
       {isLoading && (
         <div style={{ 
@@ -441,8 +572,6 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
       )}
     </>
   );
-}
+};
 
-// Bọc component trong React.memo để ngăn re-render không cần thiết
-const VRMVideoPublisher = React.memo(VRMVideoPublisherComponent);
-export default VRMVideoPublisher;
+export default React.memo(VRMVideoPublisherComponent);

@@ -159,26 +159,37 @@ export default function Page() {
 
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();
-  // State để lưu trữ stream webcam gốc
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
-  const trackReplacedRef = useRef(false); // Ref để đánh dấu đã replace track hay chưa
+  const trackReplacedRef = useRef(false);
+  const originalWebcamStreamRef = useRef<MediaStream | null>(null); // ===== THÊM: Lưu stream gốc =====
 
-  // Effect này là "trái tim" của giải pháp mới
   useEffect(() => {
-    // Chờ cho đến khi LiveKit publish xong track camera
     const cameraPub = localParticipant.getTrackPublication(Track.Source.Camera);
-    // Chỉ chạy khi có track và chưa thực hiện replace
-    if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
-      return;
-    }
+    
+    if (cameraPub) {
+    const isEnabled = !cameraPub.isMuted;
+    setIsCameraOn(isEnabled);
+    console.log('Camera track found, enabled:', isEnabled);
+  }
 
-    // Lưu lại stream webcam gốc để truyền cho VRMVideoPublisher
-    setWebcamStream(cameraPub.track.mediaStream);
-    setIsCameraOn(cameraPub.track.isEnabled);
+  if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
+    return;
+  }
 
-    // Tìm canvas ẩn được render bởi VRMVideoPublisher
-    // Dùng một selector đáng tin cậy hơn
+    // ===== QUAN TRỌNG: Lưu stream webcam GỐC vào ref =====
+    const originalStream = cameraPub.track.mediaStream;
+    originalWebcamStreamRef.current = originalStream;
+    
+    // ===== Clone stream để giữ nguyên stream gốc =====
+    const clonedStream = originalStream.clone();
+    setWebcamStream(clonedStream);
+    
+    console.log('Saved original webcam stream:', {
+      videoTracks: originalStream.getVideoTracks().length,
+      audioTracks: originalStream.getAudioTracks().length
+    });
+
     const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
     if (!canvas) {
       console.warn("VRM Canvas not found, skipping track replacement.");
@@ -190,59 +201,71 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
     const canvasTrack = canvasStream.getVideoTracks()[0];
 
     if (canvasTrack && cameraPub.track instanceof LocalVideoTrack) {
-      // Đây là phép màu: thay thế bộ xử lý của track gốc bằng track từ canvas
       cameraPub.track.replaceTrack(canvasTrack).then(() => {
-        trackReplacedRef.current = true; // Đánh dấu đã replace thành công
+        trackReplacedRef.current = true;
         console.log("Successfully replaced webcam track with canvas track.");
       }).catch(e => {
         console.error("Failed to replace track:", e);
       });
     }
 
-    // Lắng nghe sự kiện bật/tắt camera từ ControlBar
-    const handleTrackEnabled = () => setIsCameraOn(true);
-    const handleTrackDisabled = () => setIsCameraOn(false);
-    
-    // Dùng sự kiện của participant thay vì của track để ổn định hơn
-    localParticipant.on('trackEnabled', (pub) => {
-      if (pub.source === Track.Source.Camera) handleTrackEnabled();
-    });
-    localParticipant.on('trackDisabled', (pub) => {
-      if (pub.source === Track.Source.Camera) handleTrackDisabled();
-    });
+    const handleTrackMuted = (pub: any) => {
+      if (pub.source === Track.Source.Camera) {
+        console.log('Camera track muted/disabled');
+        setIsCameraOn(false);
+      }
+    };
+
+    const handleTrackUnmuted = (pub: any) => {
+      if (pub.source === Track.Source.Camera) {
+        console.log('Camera track unmuted/enabled');
+        setIsCameraOn(true);
+      }
+    };
+
+    localParticipant.on('trackMuted', handleTrackMuted);
+    localParticipant.on('trackUnmuted', handleTrackUnmuted);
 
     return () => {
-      localParticipant.off('trackEnabled', (pub) => {
-        if (pub.source === Track.Source.Camera) handleTrackEnabled();
-      });
-      localParticipant.off('trackDisabled', (pub) => {
-        if (pub.source === Track.Source.Camera) handleTrackDisabled();
-      });
+      localParticipant.off('trackMuted', handleTrackMuted);
+      localParticipant.off('trackUnmuted', handleTrackUnmuted);
+      
+      // ===== Cleanup cloned stream =====
+      if (clonedStream) {
+        clonedStream.getTracks().forEach(track => track.stop());
+      }
     };
-    // Chạy lại effect này nếu localParticipant hoặc track của nó thay đổi
   }, [localParticipant, localParticipant.getTrackPublication(Track.Source.Camera)?.track]);
 
   const handle3DToggle = () => {
-    if (isCameraOn) {
-      setIs3DEnabled(!is3DEnabled);
-    }
+    setIs3DEnabled(!is3DEnabled);
+    console.log('Toggling 3D mode:', !is3DEnabled);
   };
 
   return (
     <>
-      {/* VRMVideoPublisher giờ chỉ là một "công nhân" render, được đặt trong một div ẩn */}
       <div style={{ display: 'none' }}>
         <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
       </div>
 
-      {/* ControlBar giờ có thể quản lý camera một cách bình thường */}
       <div className="lk-control-bar">
         <ControlBar controls={{ camera: true, microphone: true, screenShare: true, leave: true }} />
-        <button className="lk-button" onClick={handle3DToggle} disabled={!isCameraOn}>
-          {is3DEnabled ? '2D' : '3D'}
+        <button 
+          className="lk-button" 
+          onClick={handle3DToggle}
+          style={{
+            backgroundColor: is3DEnabled ? '#10b981' : '#6b7280',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: 'none',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+          }}
+        >
+          {is3DEnabled ? '3D Mode ON' : '2D Mode'}
         </button>
-      
-    </div>
+      </div>
     </>
   );
 }

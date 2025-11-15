@@ -2,7 +2,11 @@ import { VRM } from '@pixiv/three-vrm';
 import * as Kalidokit from 'kalidokit';
 import { Results as FaceMeshResults } from '@mediapipe/face_mesh';
 import { Euler, Quaternion } from 'three';
-import * as THREE from 'three';
+
+// ===== Thêm lerp helper =====
+const lerp = (start: number, end: number, amount: number): number => {
+  return start + (end - start) * amount;
+};
 
 export const animateVRMFace = (
   vrm: VRM,
@@ -36,14 +40,17 @@ const rigFace = (riggedFace: any, vrm: VRM, delta: number) => {
   if (!vrm?.expressionManager) return;
 
   const expressionManager = vrm.expressionManager;
+  
+  // ===== Tăng lerpAmount để smooth hơn =====
+  const lerpAmount = delta * 15; // Tăng từ 12 lên 15
 
   const lerpExpression = (name: string, targetValue: number) => {
     const current = expressionManager.getValue(name) || 0;
-    const lerpAmount = delta * 12;
-    const newValue = current + (targetValue - current) * lerpAmount;
+    const newValue = lerp(current, targetValue, lerpAmount);
     expressionManager.setValue(name, Math.max(0, Math.min(1, newValue)));
   };
 
+  // Head rotation với damping mạnh hơn
   rigRotation(
     'neck',
     {
@@ -51,20 +58,23 @@ const rigFace = (riggedFace: any, vrm: VRM, delta: number) => {
       y: riggedFace.head.y,
       z: riggedFace.head.z,
     },
-    0.7,
-    delta * 5,
+    0.5, // Giảm dampener từ 0.7 xuống 0.5
+    lerpAmount,
     vrm
   );
 
+  // Eyes
   lerpExpression('blinkLeft', 1 - riggedFace.eye.l);
   lerpExpression('blinkRight', 1 - riggedFace.eye.r);
 
+  // Mouth
   lerpExpression('aa', riggedFace.mouth.shape.A || 0);
   lerpExpression('ee', riggedFace.mouth.shape.E || 0);
   lerpExpression('ih', riggedFace.mouth.shape.I || 0);
   lerpExpression('oh', riggedFace.mouth.shape.O || 0);
   lerpExpression('ou', riggedFace.mouth.shape.U || 0);
 
+  // Pupil
   if (riggedFace.pupil) {
     lerpExpression('lookLeft', Math.max(0, -riggedFace.pupil.x));
     lerpExpression('lookRight', Math.max(0, riggedFace.pupil.x));
