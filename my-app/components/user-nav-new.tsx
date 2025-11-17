@@ -48,14 +48,15 @@ export function UserNav() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user.avatar || undefined} alt={user.username || "User"} />
-            <AvatarFallback>{fallbackInitial}</AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
+     <button>Test</button>
+     {/* <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+       <Avatar className="h-8 w-8">
+         <AvatarImage src={user.avatar || ""} alt={user.username || "User"} />
+         <AvatarFallback>{fallbackInitial}</AvatarFallback>
+       </Avatar>
+     </Button> */}
+  </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
@@ -66,15 +67,16 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <DropdownMenuItem>
           <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
             <User className="mr-2 h-4 w-4" />
             <span>Thông tin cá nhân</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Cài đặt</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Cài đặt</span>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}
         className="cursor-pointer hover:bg-red-600 hover:text-white focus:bg-red-600 focus:text-white transition-colors"

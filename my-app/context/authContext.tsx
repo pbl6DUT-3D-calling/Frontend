@@ -1,128 +1,194 @@
 "use client";
 
-import React, { 
-  createContext, 
-  useState, 
-  useEffect, 
-  useContext, 
-  ReactNode // Import ReactNode để gõ kiểu cho 'children'
+import React, {
+    createContext,
+    useState,
+    useEffect,
+    useContext,
+    ReactNode
 } from "react";
-import { authService } from "../service/authService"; // (Đảm bảo file này là .ts hoặc .js)
-import { useRouter } from "next/navigation";
+import { authService } from "../service/authService";
+import { useRouter, usePathname } from "next/navigation";
 
-// (Tùy chọn, nhưng nên làm) Định nghĩa kiểu cho User
-// Dựa trên object 'user' mà AuthService trả về
+// (Các kiểu User, RegisterData, IAuthContext... của bạn giữ nguyên)
 type User = {
-  user_id: number;
-  username: string;
-  fullName: string;
-  email: string;
-  role: 'user' | 'admin';
-  avatar: string;
-  joinedAt: string;
-  bio: any; // (Hoặc một kiểu chi tiết hơn)
-} | null; // User có thể là null
+    user_id: number;
+    username: string;
+    fullName: string;
+    email: string;
+    role: 'user' | 'admin';
+    avatar: string;
+    joinedAt: string;
+    bio: any;
+} | null;
 
-// 1. ĐỊNH NGHĨA KIỂU (HÌNH DẠNG) CỦA CONTEXT
-// Đây là "hợp đồng" mà Provider hứa sẽ cung cấp
-interface IAuthContext {
-  user: User;
-  isLoggedIn: boolean;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<any>;
-  register: (userData: any) => Promise<any>;
-  logout: () => void;
-  googleLogin: () => void;
-  handleGoogleCallback: (token: string) => Promise<any>;
+interface RegisterData {
+    fullName: string;
+    username: string;
+    email: string;
+    password: string;
 }
 
-// 2. TẠO CONTEXT VỚI KIỂU VÀ GIÁ TRỊ MẶC ĐỊNH
-// Chúng ta khởi tạo là 'null' và gõ kiểu là 'IAuthContext | null'
+interface IAuthContext {
+    user: User;
+    isLoggedIn: boolean;
+    isLoading: boolean;
+    login: (email: string, password: string) => Promise<User>;
+    register: (userData: RegisterData) => Promise<any>;
+    logout: () => void;
+    googleLogin: () => void;
+    handleGoogleCallback: (token: string) => Promise<User>;
+    forgotPassword: (email: string) => Promise<any>;
+    resetPassword: (token: string, newPassword: string) => Promise<any>;
+    refreshUser: () => Promise<void>;
+}
+
 export const AuthContext = createContext<IAuthContext | null>(null);
 
-// 3. ĐỊNH NGHĨA KIỂU CHO PROPS CỦA PROVIDER
 type AuthProviderProps = {
-  children: ReactNode;
+    children: ReactNode;
 }
 
-// 4. TẠO PROVIDER
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User>(null); // Gõ kiểu cho state
-  const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
+    const [user, setUser] = useState<User>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const router = useRouter();
+    const pathname = usePathname();
 
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
-    setIsLoading(false);
-  }, []);
+    useEffect(() => {
+        const currentUser = authService.getCurrentUser();
+        if (currentUser) {
+            setUser(currentUser);
+        }
+        setIsLoading(false);
+    }, []);
 
-  // (Các hàm logic của bạn giữ nguyên, chúng đã đúng)
-  const login = async (email: any, password: any) => {
-    const userData = await authService.login(email, password);
-    setUser(userData);
-    return userData;
-  };
 
-  const register = async (userData: any) => {
-    return await authService.register(userData);
-  };
+    useEffect(() => {
+        console.log("--- [Auth Guard Check] ---");
+        console.log("Pathname:", pathname);
+        console.log("Is Loading:", isLoading);
+        console.log("User exists:", !!user);
 
-  const logout = () => {
-    authService.logout();
-    setUser(null);
-    router.push('/login'); // Chuyển trang sau khi logout
-  };
+        if (isLoading || !pathname) {
+            console.log("[Auth Guard] Bỏ qua: Đang loading hoặc pathname chưa sẵn sàng.");
+            return;
+        }
 
-  const googleLogin = () => {
-    authService.googleLogin();
-  };
+        const publicPaths = [
+            '/login',
+            '/register',
+            '/reset-password',
+            '/forgot-password',
+            '/login-success'
+        ];
+        console.log("[Auth Guard] Public Paths:", publicPaths);
 
-  const handleGoogleCallback = async (token: string) => {
-    if (!token) throw new Error("Không tìm thấy token Google");
-    localStorage.setItem("token", token);
-    
-    // (Giả sử bạn đã thêm hàm này vào authService.js)
-    const userData = await authService.fetchUserProfile(); 
-    
-    if (userData) {
-      setUser(userData);
-      return userData;
-    } else {
-      throw new Error("Không thể lấy thông tin user");
-    }
-  };
+        const isPublicPage = publicPaths.some(path => pathname.startsWith(path));
+        console.log("[Auth Guard] Trang này có public không?", isPublicPage);
 
-  // 5. Cung cấp giá trị (value) KHỚP VỚI INTERFACE
-  const value: IAuthContext = {
-    user,
-    isLoggedIn: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    googleLogin,
-    handleGoogleCallback,
-  };
+        if (!user && !isPublicPage) {
+            console.log("!!! [Auth Guard] QUYẾT ĐỊNH: Chuyển hướng về /login");
+            router.push('/login');
+        }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!isLoading && children}
-    </AuthContext.Provider>
-  );
+       
+        if (user && (pathname === '/login' || pathname === '/register')) {
+            console.log("!!! [Auth Guard] QUYẾT ĐỊNH: Chuyển hướng về / (Trang chủ)");
+            router.push('/');
+        }
+
+        console.log("--- [Auth Guard Check] Kết thúc ---");
+
+    }, [isLoading, user, router, pathname]);
+    // === KẾT THÚC LOGIC BẢO VỆ ===
+
+    const login = async (email: string, password: string) => {
+        const userData = await authService.login(email, password);
+        setUser(userData);
+        return userData;
+    };
+
+    const register = async (userData: RegisterData) => {
+        return await authService.register(userData);
+    };
+
+    const logout = () => {
+        authService.logout();
+        setUser(null);
+        router.push('/login');
+    };
+
+    const googleLogin = () => {
+        authService.googleLogin();
+    };
+
+    const handleGoogleCallback = async (token: string) => {
+        if (!token) throw new Error("Không tìm thấy token Google");
+
+        // SỬA LỖI: Bạn đã quên lưu token ở đây
+        localStorage.setItem("token", token);
+
+        const userData = await authService.fetchUserProfile();
+
+        if (userData) {
+            setUser(userData);
+            return userData;
+        } else {
+            throw new Error("Không thể lấy thông tin user");
+        }
+    };
+
+    const forgotPassword = async (email: string) => {
+        return authService.forgotPassword(email);
+    };
+
+    const resetPassword = async (token: string, newPassword: string) => {
+        return authService.resetPassword(token, newPassword);
+    };
+
+    const refreshUser = async () => {
+        try {
+            console.log("RefreshUser called");
+            const userData = await authService.fetchUserProfile();
+            console.log("RefreshUser got data:", userData);
+            if (userData) {
+                setUser(userData);
+            } else {
+                console.error("RefreshUser: userData is null or undefined");
+            }
+        } catch (error) {
+            console.error("Refresh user error:", error);
+        }
+    };
+
+    // Cung cấp giá trị (value)
+    const value: IAuthContext = {
+        user,
+        isLoggedIn: !!user,
+        isLoading,
+        login,
+        register,
+        logout,
+        googleLogin,
+        handleGoogleCallback,
+        forgotPassword,
+        resetPassword,
+        refreshUser,
+    };
+
+    return (
+        <AuthContext.Provider value={value}>
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
-// 6. TẠO CUSTOM HOOK (useAuth)
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-
-  // Kiểm tra runtime (khi chạy) xem có bị dùng bên ngoài Provider không
-  if (!context) {
-    throw new Error("useAuth phải được dùng bên trong AuthProvider");
-  }
-
-  // Sau khi kiểm tra, TypeScript biết 'context' chắc chắn là kiểu 'IAuthContext'
-  return context;
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error("useAuth phải được dùng bên trong AuthProvider");
+    }
+    return context;
 };
+

@@ -1,43 +1,31 @@
 import axios from "axios";
-
-// ĐỊA CHỈ BACKEND CỦA BẠN
-// (Bạn nên đặt nó trong file .env.local là VITE_API_BASE_URL)
-const BASE_URL = "http://localhost:8001";
-
-// Tạo một instance axios cho API
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8001";
 const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
 });
-
-/**
- * Tự động đính kèm token vào MỌI request
- * sau khi người dùng đã đăng nhập
- */
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+    // Chỉ chạy ở phía client (trình duyệt)
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) {
+        config.headers["Authorization"] = `Bearer ${token}`;
+      }
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
-
-/**
- * Tự động xử lý lỗi 401 (Unauthorized)
- * Nếu token hết hạn, tự động logout và chuyển về trang đăng nhập.
- */
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
+    if (typeof window !== "undefined" && error.response && error.response.status === 401) {
       // Chỉ thực hiện nếu không phải là request login (tránh vòng lặp vô hạn)
       if (!error.config.url.endsWith('/auth/login')) {
-        authService.logout();
+        authService.logout(); // Gọi hàm logout để xóa localStorage
         window.location.href = '/login'; // Dùng window.location để đảm bảo refresh toàn bộ context
       }
     }
@@ -45,89 +33,118 @@ apiClient.interceptors.response.use(
   }
 );
 
+const normalizeUserData = (user) => {
+  if (!user || typeof user !== 'object') {
+    console.error("normalizeUserData received invalid data:", user);
+    return null;
+  }
+  
+  return {
+    user_id: user.user_id,
+    username: user.username,
+    fullName: user.fullname || user.full_name || user.fullName, // Hỗ trợ fullname, full_name, fullName
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar_url || user.avatar, // Hỗ trợ avatar_url, avatar
+    joinedAt: user.created_at || user.joinedAt, // Hỗ trợ created_at, joinedAt
+    bio: user.bio || null,
+  };
+};
 
-/**
- * Hàm lưu token và data user
- */
 const saveTokenAndData = (data) => {
   const { accessToken, user } = data;
 
   if (!accessToken || !user) {
-    throw new Error("Dữ liệu trả về không hợp lệ");
+    throw new Error("Dữ liệu trả về không hợp lệ từ saveTokenAndData");
   }
 
-  // Bước 9: Lưu accessToken vào localStorage
   localStorage.setItem("token", accessToken);
-  // Lưu thông tin user (đã chuẩn hóa) vào localStorage
-  localStorage.setItem("data", JSON.stringify(user));
+  const normalizedUser = normalizeUserData(user);
+  localStorage.setItem("data", JSON.stringify(normalizedUser));
   
-  return user; // Trả về thông tin user
+  return normalizedUser; // Trả về thông tin user đã chuẩn hóa
 }
 
 
 export const authService = {
-  /**
-   * Bước 4: Gửi POST request đến .../auth/login
-   */
+
   login: async (email, password) => {
     try {
-      // Gửi API call
       const response = await apiClient.post("/auth/login", { email, password });
-      
-      // Lưu token và trả về data user
-      return saveTokenAndData(response.data);
-
+      return saveTokenAndData(response.data); // Lưu và trả về user đã chuẩn hóa
     } catch (error) {
-      // Ném lỗi ra để component bắt
       throw new Error(error.response?.data?.error || "Đăng nhập thất bại");
     }
   },
 
-  /**
-   * API call cho Đăng ký
-   */
   register: async (userData) => {
     try {
-      // 'userData' là { name, email, password } từ form
       const response = await apiClient.post("/auth/register", userData);
       return response.data; // Trả về { message: "..." }
     } catch (error) {
       throw new Error(error.response?.data?.error || "Đăng ký thất bại");
     }
   },
-
-  // ... (Các hàm khác như logout, getCurrentUser... ở đây)
   
   logout: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("data");
-    // (Không cần gọi API logout, trừ khi bạn muốn)
   },
+
 
   getCurrentUser: () => {
     try {
-      return JSON.parse(localStorage.getItem("data"));
+      if (typeof window !== "undefined") {
+        const userData = localStorage.getItem("data");
+        return userData ? JSON.parse(userData) : null;
+      }
+      return null;
     } catch (e) {
       return null;
     }
   },
   
   googleLogin: () => {
-    // Chuyển hướng trình duyệt đến API backend
     window.location.href = `${BASE_URL}/auth/google`;
   },
-  
   fetchUserProfile: async () => {
-     // Hàm này dùng sau khi Google login
      try {
-       const response = await apiClient.get("/api/me"); 
-       localStorage.setItem("data", JSON.stringify(response.data));
-       return response.data;
+       const response = await apiClient.get("/api/me");
+       console.log("API /api/me full response:", response);
+       console.log("API /api/me response.data:", response.data);
+       
+       // Check if response.data has user property
+       const userData = response.data.user || response.data;
+       console.log("User data to normalize:", userData);
+       
+       const normalizedUser = normalizeUserData(userData);
+       console.log("Normalized user:", normalizedUser);
+       localStorage.setItem("data", JSON.stringify(normalizedUser));
+       return normalizedUser; // Trả về user đã chuẩn hóa
+
      } catch (error) {
        console.error("Fetch User Profile Error:", error);
-       return null;
+       console.error("Error response:", error.response?.data);
+       // Ném lỗi ra để AuthContext bắt
+       throw new Error(error.response?.data?.error || "Không thể lấy thông tin người dùng.");
      }
+  },
+  forgotPassword: async (email) => {
+    try {
+      const response = await apiClient.post("/auth/forgot-password", { email });
+      return response.data; // Trả về { message: "..." }
+    } catch (error) {
+      throw new Error(error.response?.data?.error || "Gửi email thất bại");
+    }
+  },
+  resetPassword: async (token, newPassword) => {
+    try {
+      const response = await apiClient.post("/auth/reset-password", { token, newPassword });
+      return response.data; // Trả về { message: "..." }
+    } catch (error) {
+      throw new Error(error.response?.data?.error || "Đặt lại mật khẩu thất bại");
+    }
   }
 };
+export default apiClient;
 
-export default apiClient; // Export để các service khác dùng
