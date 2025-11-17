@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { Face, Hand, Pose } from "kalidokit";
 import { useControls } from "leva";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Euler, Object3D, Quaternion, Vector3 } from "three";
+import { Euler, Object3D, Quaternion, Vector3, LoopRepeat } from "three";
 import { lerp } from "three/src/math/MathUtils.js";
 import { useVideoRecognition } from "../hooks/useVideoRecognition";
 import { remapMixamoAnimationToVrm } from "../utils/remapMixamoAnimationToVrm";
@@ -13,9 +13,27 @@ const tmpVec3 = new Vector3();
 const tmpQuat = new Quaternion();
 const tmpEuler = new Euler();
 
-export const VRMAvatar = ({ avatar, ...props }) => {
+export const VRMAvatar = ({ 
+  avatar, 
+  autoPlayIdle = false, 
+  externalAnimation = null,
+  externalExpressions = {},
+  hideControls = false,
+  ...props 
+}) => {
+  console.log("VRMAvatar props - avatar:", avatar);
+  console.log("VRMAvatar props - autoPlayIdle:", autoPlayIdle);
+  
+  // Support both local path and full URL
+  // Check if path already starts with 'models/' or is a full URL
+  const modelPath = avatar?.startsWith('http') 
+    ? avatar 
+    : avatar?.startsWith('models/') 
+      ? avatar 
+      : `models/${avatar}`;
+  
   const { scene, userData } = useGLTF(
-    `models/${avatar}`,
+    modelPath,
     undefined,
     undefined,
     (loader) => {
@@ -49,7 +67,7 @@ export const VRMAvatar = ({ avatar, ...props }) => {
     return clip;
   }, [assetC, currentVrm]);
 
-  const { actions } = useAnimations(
+  const { actions, mixer } = useAnimations(
     [animationClipA, animationClipB, animationClipC],
     currentVrm.scene
   );
@@ -164,38 +182,43 @@ export const VRMAvatar = ({ avatar, ...props }) => {
     setResultsCallback(resultsCallback);
   }, [resultsCallback]);
 
-  const {
-    aa,
-    ih,
-    ee,
-    oh,
-    ou,
-    blinkLeft,
-    blinkRight,
-    angry,
-    sad,
-    happy,
-    relaxed,
-    animation,
-    lookDown,
-  } = useControls("VRM", {
-    aa: { value: 0, min: 0, max: 1 },
-    ih: { value: 0, min: 0, max: 1 },
-    ee: { value: 0, min: 0, max: 1 },
-    oh: { value: 0, min: 0, max: 1 },
-    ou: { value: 0, min: 0, max: 1 },
-    blinkLeft: { value: 0, min: 0, max: 1 },
-    blinkRight: { value: 0, min: 0, max: 1 },
-    angry: { value: 0, min: 0, max: 1 },
-    sad: { value: 0, min: 0, max: 1 },
-    happy: { value: 0, min: 0, max: 1 },
-    relaxed: { value: 0, min: 0, max: 1 },
-    lookDown: { value: 0, min: 0, max: 1 },
-    animation: {
-      options: ["None", "Idle", "Swing Dancing", "Thriller Part 2"],
-      value: "Idle",
+  const levaControls = useControls(
+    "VRM", 
+    {
+      aa: { value: 0, min: 0, max: 1 },
+      ih: { value: 0, min: 0, max: 1 },
+      ee: { value: 0, min: 0, max: 1 },
+      oh: { value: 0, min: 0, max: 1 },
+      ou: { value: 0, min: 0, max: 1 },
+      blinkLeft: { value: 0, min: 0, max: 1 },
+      blinkRight: { value: 0, min: 0, max: 1 },
+      angry: { value: 0, min: 0, max: 1 },
+      sad: { value: 0, min: 0, max: 1 },
+      happy: { value: 0, min: 0, max: 1 },
+      relaxed: { value: 0, min: 0, max: 1 },
+      lookDown: { value: 0, min: 0, max: 1 },
+      animation: {
+        options: ["None", "Idle", "Swing Dancing", "Thriller Part 2"],
+        value: "Idle",
+      },
     },
-  });
+    { hidden: hideControls }
+  );
+
+  // Use external controls if provided, otherwise use Leva
+  const aa = externalExpressions.aa ?? levaControls.aa;
+  const ih = externalExpressions.ih ?? levaControls.ih;
+  const ee = externalExpressions.ee ?? levaControls.ee;
+  const oh = externalExpressions.oh ?? levaControls.oh;
+  const ou = externalExpressions.ou ?? levaControls.ou;
+  const blinkLeft = externalExpressions.blinkLeft ?? levaControls.blinkLeft;
+  const blinkRight = externalExpressions.blinkRight ?? levaControls.blinkRight;
+  const angry = externalExpressions.angry ?? levaControls.angry;
+  const sad = externalExpressions.sad ?? levaControls.sad;
+  const happy = externalExpressions.happy ?? levaControls.happy;
+  const relaxed = externalExpressions.relaxed ?? levaControls.relaxed;
+  const lookDown = externalExpressions.lookDown ?? levaControls.lookDown;
+  const animation = externalAnimation ?? levaControls.animation;
 
   useEffect(() => {
     if (animation === "None" || videoElement) {
@@ -206,6 +229,40 @@ export const VRMAvatar = ({ avatar, ...props }) => {
       actions[animation]?.stop();
     };
   }, [actions, animation, videoElement]);
+
+  // Auto play Idle animation if autoPlayIdle prop is true
+  useEffect(() => {
+    console.log("AutoPlayIdle effect - autoPlayIdle:", autoPlayIdle);
+    console.log("AutoPlayIdle effect - actions:", actions);
+    console.log("AutoPlayIdle effect - actions['Idle']:", actions["Idle"]);
+    
+    if (autoPlayIdle && actions["Idle"]) {
+      // Delay để đảm bảo animation đã sẵn sàng
+      const timer = setTimeout(() => {
+        console.log("Auto-playing Idle animation");
+        const idleAction = actions["Idle"];
+        console.log("Idle action object:", idleAction);
+        console.log("Idle action isRunning:", idleAction?.isRunning());
+        console.log("Idle action time:", idleAction?.time);
+        console.log("Idle action timeScale:", idleAction?.timeScale);
+        
+        if (idleAction) {
+          idleAction.reset();
+          idleAction.setLoop(LoopRepeat, Infinity);
+          idleAction.play();
+          console.log("After play - isRunning:", idleAction.isRunning());
+          console.log("After play - enabled:", idleAction.enabled);
+          console.log("After play - paused:", idleAction.paused);
+        }
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        actions["Idle"]?.stop();
+      };
+    } else {
+      console.log("AutoPlayIdle effect - NOT playing (autoPlayIdle or action missing)");
+    }
+  }, [autoPlayIdle, actions]);
 
   const lerpExpression = (name, value, lerpFactor) => {
     userData.vrm.expressionManager.setValue(
@@ -284,6 +341,11 @@ export const VRMAvatar = ({ avatar, ...props }) => {
   useFrame((_, delta) => {
     if (!userData.vrm) {
       return;
+    }
+
+    // Update animation mixer để animation chạy
+    if (mixer) {
+      mixer.update(delta);
     }
 
     lerpExpression("angry", angry, delta * 12);
@@ -373,7 +435,7 @@ export const VRMAvatar = ({ avatar, ...props }) => {
         });
       }
       // Eyes
-      if (lookAtTarget.current) {
+      if (lookAtTarget.current && riggedFace.current?.pupil) {
         userData.vrm.lookAt.target = lookAtTarget.current;
         lookAtDestination.current.set(
           -2 * riggedFace.current.pupil.x,
@@ -387,11 +449,13 @@ export const VRMAvatar = ({ avatar, ...props }) => {
       }
 
       // Body
-      rotateBone("neck", riggedFace.current.head, delta * 5, {
-        x: 0.7,
-        y: 0.7,
-        z: 0.7,
-      });
+      if (riggedFace.current?.head) {
+        rotateBone("neck", riggedFace.current.head, delta * 5, {
+          x: 0.7,
+          y: 0.7,
+          z: 0.7,
+        });
+      }
     }
     if (riggedPose.current) {
       rotateBone("chest", riggedPose.current.Spine, delta * 5, {
