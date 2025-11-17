@@ -1,8 +1,14 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
 import { Model3D } from "./model-3d" // Import component đã refactor
 import { Button } from "@/components/ui/button"
+import { Canvas } from "@react-three/fiber"
+import { OrbitControls, Environment } from "@react-three/drei"
+import { VRMAvatar } from "@/components/VRMAvatar"
+import { VRMControls } from "@/components/vrm-controls"
+import { ModelInfo } from "@/components/model-info"
+import { QuickActions } from "@/components/quick-actions"
 // Import các component UI cho Modal (ví dụ từ shadcn/ui)
 import {
   Dialog,
@@ -24,6 +30,8 @@ type ModelItem = {
   name: string;
   vrmUrl: string;       // URL (blob) để load trong <Model3D>
   thumbnailUrl: string; // URL (dataURL) để load trong <img>
+  uploadDate?: string;  // Ngày upload (ISO string)
+  fileSize?: number;    // Kích thước file (bytes)
 };
 
 // ==== HÀM TRÍCH XUẤT THUMBNAIL (CORE LOGIC) ====
@@ -93,6 +101,11 @@ async function extractThumbnail(file: File): Promise<string> {
 
 // ==== COMPONENT CHÍNH QUẢN LÝ STUDIO ====
 export function VRMStudio() {
+  // === Refs ===
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   // === State ===
   const [modelList, setModelList] = useState<ModelItem[]>([
     // Thêm một model mặc định
@@ -121,7 +134,15 @@ export function VRMStudio() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [modelToDelete, setModelToDelete] = useState<{ id: string; name: string } | null>(null);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // State cho controls
+  const [currentAnimation, setCurrentAnimation] = useState("Idle");
+  const [expressions, setExpressions] = useState({
+    happy: 0,
+    sad: 0,
+    angry: 0,
+    relaxed: 0,
+  });
+  
   const selectTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce timeout
 
   // === Load models từ server khi component mount ===
@@ -140,6 +161,8 @@ export function VRMStudio() {
           name: model.name || model.fileName || "Unnamed Model",
           vrmUrl: model.file_url || model.fileUrl || model.url || "",
           thumbnailUrl: model.thumbnail_url || model.thumbnailUrl || "https://placehold.co/150x150/a78bfa/ffffff?text=VRM",
+          uploadDate: model.upload_date || model.created_at || model.createdAt || model.uploadDate,
+          fileSize: model.file_size ? parseInt(model.file_size) : undefined,
         }));
 
         console.log("Converted models:", convertedModels);
@@ -196,36 +219,56 @@ export function VRMStudio() {
     setIsUploading(true);
 
     try {
-      // 1. Trích xuất thumbnail
-      const thumbnailUrl = await extractThumbnail(pendingFile);
-
-      // 2. Upload lên server với tên model
-      const response = await modelService.uploadModel(pendingFile, thumbnailUrl, modelName.trim());
+      console.log("📤 Step 1: Creating temporary blob URL...");
+      // 1. Tạo blob URL tạm để generate thumbnail
+      const tempBlobUrl = URL.createObjectURL(pendingFile);
       
-      console.log("Upload success:", response);
-
-      // 3. Tạo Blob URL
-      const vrmUrl = URL.createObjectURL(pendingFile);
-
-      // 4. Tạo object model mới
-      const firebaseUrl = response.model?.file_url || vrmUrl;
+      console.log("📸 Step 2: Generating thumbnail from VRM...");
+      // 2. Generate thumbnail từ VRM model (chụp mặt nhân vật)
+      const { generateVrmThumbnail, dataUrlToFile } = await import("@/utils/generateVrmThumbnail");
+      const thumbnailDataUrl = await generateVrmThumbnail(tempBlobUrl, {
+        size: 512,
+        padding: 1.3
+      });
       
-      console.log("Firebase URL:", firebaseUrl);
+      // 3. Convert thumbnail dataURL → File
+      const thumbnailFile = await dataUrlToFile(
+        thumbnailDataUrl, 
+        `${modelName.trim()}_thumb.png`
+      );
       
+      console.log("✅ Thumbnail generated:", thumbnailFile.size, "bytes");
+      
+      // Clean up temp blob
+      URL.revokeObjectURL(tempBlobUrl);
+
+      console.log("☁️ Step 3: Uploading VRM + thumbnail to server...");
+      // 4. Upload VRM + thumbnail lên server (1 request duy nhất)
+      const response = await modelService.uploadModel(
+        pendingFile, 
+        thumbnailFile, 
+        modelName.trim()
+      );
+      
+      console.log("✅ Upload success:", response);
+
+      // 5. Tạo object model mới với data từ server
       const newModel: ModelItem = {
         id: response.model?.id?.toString() || crypto.randomUUID(),
-        name: modelName.trim(),
-        vrmUrl: firebaseUrl,
-        thumbnailUrl: thumbnailUrl
+        name: response.model?.name || modelName.trim(),
+        vrmUrl: response.model?.file_url, // URL từ Firebase
+        thumbnailUrl: response.model?.thumbnail_url, // Thumbnail URL từ Firebase
+        uploadDate: response.model?.upload_date,
+        fileSize: response.model?.file_size ? parseInt(response.model.file_size) : undefined
       };
 
-      // 5. Cập nhật state
+      // 6. Cập nhật state
       setModelList(prev => [...prev, newModel]);
       
-      alert("Upload model thành công!");
+      alert("✅ Upload model và thumbnail thành công!");
       
     } catch (error) {
-      console.error("Upload thất bại:", error);
+      console.error("❌ Upload thất bại:", error);
       const errorMessage = error instanceof Error ? error.message : "Upload model thất bại";
       alert(errorMessage);
     } finally {
@@ -315,6 +358,94 @@ export function VRMStudio() {
     setModelToDelete(null);
   };
 
+  // ==== QUICK ACTIONS HANDLERS ====
+  const handleScreenshot = () => {
+    const canvas = document.querySelector('canvas');
+    if (!canvas) {
+      alert('Không tìm thấy canvas');
+      return;
+    }
+
+    try {
+      // Lấy data URL từ canvas
+      const dataURL = canvas.toDataURL('image/png');
+      
+      // Tạo link download
+      const link = document.createElement('a');
+      const modelName = modelList.find(m => m.vrmUrl === currentVrmUrl)?.name || 'model';
+      link.download = `${modelName}_screenshot_${Date.now()}.png`;
+      link.href = dataURL;
+      link.click();
+      
+      console.log('Screenshot saved!');
+    } catch (error) {
+      console.error('Screenshot failed:', error);
+      alert('Không thể chụp ảnh màn hình');
+    }
+  };
+
+  const handleExportPose = () => {
+    try {
+      const poseData = {
+        modelName: modelList.find(m => m.vrmUrl === currentVrmUrl)?.name || 'Unknown',
+        animation: currentAnimation,
+        expressions: expressions,
+        timestamp: new Date().toISOString(),
+      };
+
+      const dataStr = JSON.stringify(poseData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const link = document.createElement('a');
+      link.download = `${poseData.modelName}_pose_${Date.now()}.json`;
+      link.href = URL.createObjectURL(dataBlob);
+      link.click();
+      
+      console.log('Pose exported:', poseData);
+    } catch (error) {
+      console.error('Export pose failed:', error);
+      alert('Không thể export pose');
+    }
+  };
+
+  const handleShare = () => {
+    const currentModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
+    if (!currentModel) {
+      alert('Không tìm thấy model');
+      return;
+    }
+
+    const shareUrl = currentModel.vrmUrl;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        console.log('Link copied to clipboard:', shareUrl);
+      })
+      .catch((error) => {
+        console.error('Copy failed:', error);
+        alert('Không thể copy link');
+      });
+  };
+
+  const handleFullscreen = () => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      container.requestFullscreen()
+        .then(() => console.log('Entered fullscreen'))
+        .catch((error) => {
+          console.error('Fullscreen failed:', error);
+          alert('Không thể vào chế độ toàn màn hình');
+        });
+    } else {
+      document.exitFullscreen()
+        .then(() => console.log('Exited fullscreen'))
+        .catch((error) => console.error('Exit fullscreen failed:', error));
+    }
+  };
+
   return (
     <div className="w-full space-y-4">
       {/* Input file ẩn */}
@@ -329,9 +460,78 @@ export function VRMStudio() {
       {/* Tiêu đề và Mô tả */}
       
 
-      {/* Component Model3D đã refactor */}
-      {!showModal && (
-        <Model3D vrmUrl={currentVrmUrl} height="h-[50vh]" showLoading={isLoading} />
+      {/* VRM Studio Preview with Animation Controls */}
+      {!showModal && currentVrmUrl && (
+        <div 
+          ref={containerRef}
+          className="h-[50vh] w-full bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl border-2 border-purple-200 shadow-lg overflow-hidden relative"
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-purple-700 font-medium">Đang tải VRM model...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Canvas
+                camera={{ position: [0, 1.5, 3], fov: 50 }}
+                gl={{
+                  preserveDrawingBuffer: true,
+                  antialias: true,
+                  alpha: true
+                }}
+                dpr={[1, 2]}
+              >
+                <Suspense fallback={null}>
+                  <ambientLight intensity={0.8} />
+                  <directionalLight position={[5, 5, 5]} intensity={1.5} />
+                  <directionalLight position={[-5, 5, -5]} intensity={0.7} />
+                  <VRMAvatar 
+                    avatar={currentVrmUrl} 
+                    externalAnimation={currentAnimation}
+                    externalExpressions={expressions}
+                    hideControls={true}
+                  />
+                  <OrbitControls
+                    enableZoom={true}
+                    enablePan={false}
+                    minDistance={1.5}
+                    maxDistance={5}
+                    target={[0, 0.9, 0]}
+                  />
+                  <Environment preset="sunset" />
+                </Suspense>
+              </Canvas>
+              
+              {/* Model Info Card - Left */}
+              <ModelInfo
+                modelName={modelList.find(m => m.vrmUrl === currentVrmUrl)?.name || "Default Model"}
+                modelUrl={currentVrmUrl || ""}
+                uploadDate={modelList.find(m => m.vrmUrl === currentVrmUrl)?.uploadDate}
+                fileSize={modelList.find(m => m.vrmUrl === currentVrmUrl)?.fileSize}
+              />
+              
+              {/* Animation Controls Overlay - Right */}
+              <VRMControls
+                currentAnimation={currentAnimation}
+                onAnimationChange={(anim) => setCurrentAnimation(anim)}
+                onExpressionChange={(exp, value) => {
+                  setExpressions(prev => ({ ...prev, [exp]: value }));
+                }}
+              />
+              
+              {/* Quick Actions Bar - Bottom Center */}
+              <QuickActions
+                onScreenshot={handleScreenshot}
+                onExportPose={handleExportPose}
+                onShare={handleShare}
+                onFullscreen={handleFullscreen}
+              />
+            </>
+          )}
+        </div>
       )}
 
       {/* Các nút điều khiển */}

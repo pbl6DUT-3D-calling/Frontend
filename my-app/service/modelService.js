@@ -27,28 +27,26 @@ const createUploadClient = () => {
 
 export const modelService = {
   /**
-   * Upload VRM model file lên server
+   * Upload VRM model file lên server (CÓ THUMBNAIL)
    * @param {File} file - File VRM cần upload
-   * @param {string} thumbnailDataUrl - Data URL của thumbnail (base64)
+   * @param {File} thumbnailFile - File thumbnail (PNG/JPG) đã generate
    * @param {string} name - Tên model do user đặt
    * @returns {Promise} - Promise với response data
    */
-  uploadModel: async (file, thumbnailDataUrl, name) => {
+  uploadModel: async (file, thumbnailFile, name) => {
     try {
       // 1. Tạo FormData
       const formData = new FormData();
-      formData.append("modelFile", file); // Field name phải khớp với backend
+      formData.append("modelFile", file); // Field name: modelFile
       
-      // 2. Thêm tên model
-      if (name) {
-        formData.append("name", name);
+      // 2. Thêm thumbnail file (bắt buộc)
+      if (thumbnailFile) {
+        formData.append("thumbnailFile", thumbnailFile); // Field name: thumbnailFile
       }
       
-      // 3. Nếu có thumbnail, có thể gửi kèm (tùy backend)
-      // Chuyển dataURL thành blob nếu cần
-      if (thumbnailDataUrl && thumbnailDataUrl.startsWith("data:")) {
-        const thumbnailBlob = dataURLToBlob(thumbnailDataUrl);
-        formData.append("thumbnail", thumbnailBlob, "thumbnail.png");
+      // 3. Thêm tên model
+      if (name) {
+        formData.append("name", name);
       }
 
       // 4. Call API với multipart/form-data

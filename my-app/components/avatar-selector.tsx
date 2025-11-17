@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CheckCircle, X, Loader2 } from "lucide-react";
+import { CheckCircle, X, Loader2, Trash2 } from "lucide-react";
 import { modelService } from "@/service/modelService";
 import dynamic from "next/dynamic";
 
@@ -33,6 +33,12 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
   const [selectedModel, setSelectedModel] = useState<ModelItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [show3DPreview, setShow3DPreview] = useState(false);
+  
+  // Delete confirmation state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [modelToDelete, setModelToDelete] = useState<ModelItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   useEffect(() => {
     console.log("AvatarSelector isOpen:", isOpen);
@@ -91,6 +97,49 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
     setTimeout(() => onClose(), 100);
   };
 
+  const handleDeleteClick = (e: React.MouseEvent, model: ModelItem) => {
+    e.stopPropagation(); // Prevent selecting the model
+    setModelToDelete(model);
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!modelToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await modelService.deleteModel(modelToDelete.id);
+      
+      // Remove from list
+      setModels(prev => prev.filter(m => m.id !== modelToDelete.id));
+      
+      // Clear selection if deleted model was selected
+      if (selectedModel?.id === modelToDelete.id) {
+        setSelectedModel(null);
+        setShow3DPreview(false);
+      }
+      
+      // Close delete dialog
+      setShowDeleteDialog(false);
+      setModelToDelete(null);
+      
+      // Show success toast
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+      
+    } catch (error) {
+      console.error("Delete failed:", error);
+      alert(error instanceof Error ? error.message : "Xóa model thất bại");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteDialog(false);
+    setModelToDelete(null);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 rounded-2xl">
@@ -126,10 +175,10 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                 </div>
               ) : (
                 models.map((model) => (
-                  <button
+                  <div
                     key={model.id}
                     onClick={() => handleSelectModel(model)}
-                    className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                    className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 relative group cursor-pointer ${
                       selectedModel?.id === model.id
                         ? "border-purple-500 bg-purple-50"
                         : "border-gray-200 hover:border-purple-300 hover:bg-purple-50/50"
@@ -145,10 +194,20 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                     <div className="flex-1 text-left">
                       <p className="font-medium text-gray-800 truncate">{model.name}</p>
                     </div>
-                    {selectedModel?.id === model.id && (
-                      <CheckCircle className="w-6 h-6 text-purple-600 flex-shrink-0" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-2">
+                      {selectedModel?.id === model.id && (
+                        <CheckCircle className="w-6 h-6 text-purple-600 flex-shrink-0" />
+                      )}
+                      {/* Delete Button */}
+                      <button
+                        onClick={(e) => handleDeleteClick(e, model)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-lg z-10"
+                        title="Xóa model"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -181,7 +240,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                         <ambientLight intensity={0.8} />
                         <directionalLight position={[5, 5, 5]} intensity={1} />
                         <directionalLight position={[-5, 5, -5]} intensity={0.5} />
-                        <VRMAvatar avatar={selectedModel.vrmUrl} />
+                        <VRMAvatar avatar={selectedModel.vrmUrl} autoPlayIdle={true} />
                         <OrbitControls
                           enableZoom={true}
                           enablePan={false}
@@ -249,6 +308,69 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md bg-gradient-to-br from-red-50 to-white border-2 border-red-200 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-red-700 flex items-center gap-2">
+              <Trash2 className="w-6 h-6" />
+              Xác nhận Xóa
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="bg-red-100 border-2 border-red-200 rounded-xl p-4">
+              <p className="text-gray-700 text-center">
+                Bạn có chắc chắn muốn xóa model{' '}
+                <span className="font-bold text-red-600">"{modelToDelete?.name}"</span>?
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 text-center">
+              Hành động này không thể hoàn tác.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCancelDelete}
+              disabled={isDeleting}
+              className="rounded-xl border-2 border-gray-200 hover:bg-gray-50"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Hủy
+            </Button>
+            <Button
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white"
+            >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              {isDeleting ? "Đang xóa..." : "Xóa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Toast */}
+      {showSuccessToast && (
+        <div className="fixed bottom-8 right-8 z-[9999] animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-2xl shadow-2xl border-2 border-green-400 flex items-center gap-3">
+            <div className="bg-white/20 rounded-full p-2">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-lg">Đã xóa thành công!</p>
+              <p className="text-sm text-green-100">Model đã được xóa khỏi thư viện</p>
+            </div>
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }
