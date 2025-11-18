@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "lint": "next lint"
   },
   "dependencies": {
@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.3.0",
+    "@react-three/postprocessing": "^3.0.4",
     "@tensorflow-models/face-landmarks-detection": "^1.0.6",
     "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.12.2",
@@ -56,6 +57,7 @@
     "geist": "^1.5.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
+    "leva": "^0.10.1",
     "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.544.0",
     "next": "^15.5.3",

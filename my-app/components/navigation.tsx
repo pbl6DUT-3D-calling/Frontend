@@ -3,8 +3,10 @@
 import { Button } from "@/components/ui/button"
 import { Video, Users, Download } from "lucide-react"
 import { UserNav } from "./user-nav"
+import { useRouter } from "next/navigation"
 
 export function Navigation() {
+  const router = useRouter();
   return (
     <nav className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-4">
@@ -28,7 +30,12 @@ export function Navigation() {
               Models
             </Button>
             <UserNav />
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">Start Stream</Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => router.push('room')}
+            >
+              Start Stream
+            </Button>
           </div>
         </div>
       </div>
