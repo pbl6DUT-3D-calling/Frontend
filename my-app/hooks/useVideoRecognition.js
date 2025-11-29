@@ -5,4 +5,6 @@ export const useVideoRecognition = create((set) => ({
   setVideoElement: (videoElement) => set({ videoElement }),
   resultsCallback: null,
   setResultsCallback: (resultsCallback) => set({ resultsCallback }),
+  riggedFace: null, // WFLW face rig data
+  setRiggedFace: (riggedFace) => set({ riggedFace }),
 }));
