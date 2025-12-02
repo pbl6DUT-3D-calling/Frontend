@@ -86,10 +86,8 @@ export const modelService = {
       return response.data;
     } catch (error) {
       console.error("Get user models error:", error);
-      throw new Error(
-        error.response?.data?.error || 
-        "Lấy danh sách models thất bại"
-      );
+      // Return empty array instead of throwing to prevent app crash
+      return [];
     }
   },
 
