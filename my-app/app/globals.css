@@ -158,3 +158,29 @@
     @apply bg-background text-foreground;
   }
 }
+
+.lk-participant-tile video,
+.lk-participant-tile canvas {
+  object-fit: contain !important; /* Giữ tỷ lệ, không bóp méo */
+  width: 100% !important;
+  height: 100% !important;
+  background: #000; /* Nền đen cho phần trống */
+}
+
+/* Optional: Nếu muốn cover (fill toàn bộ, có thể cắt phần thừa) */
+/* 
+.lk-participant-tile video,
+.lk-participant-tile canvas {
+  object-fit: cover !important;
+}
+*/
+
+/* ===== Fix layout grid để tránh bóp méo ===== */
+.lk-grid-layout {
+  background: #000;
+}
+
+.lk-participant-tile {
+  overflow: hidden;
+  background: #000;
+}

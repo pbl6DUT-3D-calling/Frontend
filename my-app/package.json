@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "lint": "next lint"
   },
   "dependencies": {
@@ -14,6 +14,8 @@
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/face_mesh": "^0.4.1633559619",
     "@mediapipe/holistic": "^0.5.1675471629",
+    "@livekit/components-react": "^2.9.15",
+    "@livekit/components-styles": "^1.2.0",
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@pixiv/three-vrm": "^3.4.4",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -46,6 +48,8 @@
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.3.0",
     "@react-three/postprocessing": "^3.0.4",
+    "@tensorflow-models/face-landmarks-detection": "^1.0.6",
+    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
@@ -57,10 +61,9 @@
     "geist": "^1.5.1",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",
-    "kalidokit": "^1.1.5",
-    "leva": "^0.10.0",
+    "leva": "^0.10.1",
+    "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.544.0",
-    "mediapipe": "^0.0.1-security",
     "next": "^15.5.3",
     "path": "0.12.7",
     "react": "^19.1.1",
@@ -75,8 +78,7 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.180.0",
     "vaul": "^1.1.2",
-    "zod": "3.25.67",
-    "zustand": "^5.0.8"
+    "zod": "3.25.67"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
