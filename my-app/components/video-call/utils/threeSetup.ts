@@ -1,10 +1,8 @@
 import * as THREE from 'three';
-import { CANVAS_CONFIG, CAMERA_CONFIG, LIGHTING_CONFIG } from './constants';
+import { CANVAS_CONFIG, CAMERA_CONFIG, VRM_POSITIONING, getResponsiveCanvasConfig } from './constants';
 
 export function createScene(): THREE.Scene {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x212121);
-  return scene;
+  return new THREE.Scene();
 }
 
 export function createCamera(): THREE.PerspectiveCamera {
@@ -15,9 +13,7 @@ export function createCamera(): THREE.PerspectiveCamera {
     CAMERA_CONFIG.FAR
   );
   
-  const { x, y, z } = CAMERA_CONFIG.INITIAL_POSITION;
-  camera.position.set(x, y, z);
-  camera.lookAt(0, 1.3, 0);
+  console.log('📷 Camera created with FOV:', CAMERA_CONFIG.FOV);
   
   return camera;
 }
@@ -25,50 +21,136 @@ export function createCamera(): THREE.PerspectiveCamera {
 export function createRenderer(canvas: HTMLCanvasElement): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    alpha: false,
+    alpha: true,
     antialias: true,
     preserveDrawingBuffer: true,
   });
   
-  renderer.setSize(CANVAS_CONFIG.WIDTH, CANVAS_CONFIG.HEIGHT);
+  const config = getResponsiveCanvasConfig();
+  renderer.setSize(config.WIDTH, config.HEIGHT);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   
   return renderer;
 }
 
 export function setupLighting(scene: THREE.Scene): void {
-  const { DIRECTIONAL_1, DIRECTIONAL_2, AMBIENT } = LIGHTING_CONFIG;
-  
-  const light1 = new THREE.DirectionalLight(DIRECTIONAL_1.color, DIRECTIONAL_1.intensity);
-  light1.position.set(...DIRECTIONAL_1.position);
-  scene.add(light1);
-  
-  const light2 = new THREE.DirectionalLight(DIRECTIONAL_2.color, DIRECTIONAL_2.intensity);
-  light2.position.set(...DIRECTIONAL_2.position);
-  scene.add(light2);
-  
-  const ambientLight = new THREE.AmbientLight(AMBIENT.color, AMBIENT.intensity);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
   scene.add(ambientLight);
+
+  const frontLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  frontLight.position.set(0, 1, 2);
+  scene.add(frontLight);
+
+  const leftLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  leftLight.position.set(-1, 0.5, 1);
+  scene.add(leftLight);
+
+  const rightLight = new THREE.DirectionalLight(0xffffff, 0.4);
+  rightLight.position.set(1, 0.5, 1);
+  scene.add(rightLight);
+
+  const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  backLight.position.set(0, 1, -1);
+  scene.add(backLight);
 }
 
 export function adjustCameraForVRM(
   camera: THREE.PerspectiveCamera,
   vrmScene: THREE.Object3D
 ): void {
+  console.log('🎯 Adjusting camera for VRM (proportional)...');
+  
+  vrmScene.updateMatrixWorld(true);
+  
   const box = new THREE.Box3().setFromObject(vrmScene);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const fov = camera.fov * (Math.PI / 180);
-  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+  console.log('📦 Model bounding box:', {
+    min: { x: box.min.x.toFixed(2), y: box.min.y.toFixed(2), z: box.min.z.toFixed(2) },
+    max: { x: box.max.x.toFixed(2), y: box.max.y.toFixed(2), z: box.max.z.toFixed(2) },
+    size: { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) },
+    center: { x: center.x.toFixed(2), y: center.y.toFixed(2), z: center.z.toFixed(2) }
+  });
   
-  cameraZ *= 1.3;
+  // ⬅️ Tính vùng visible theo TỈ LỆ %
+  const fromHeight = VRM_POSITIONING.VISIBLE_FROM_HEIGHT;
+  const toHeight = VRM_POSITIONING.VISIBLE_TO_HEIGHT;
   
-  const headHeight = center.y + size.y * 0.35;
-  const { x: offsetX, y: offsetY, z_multiplier } = CAMERA_CONFIG.OFFSET;
+  const bottomY = box.min.y + (size.y * fromHeight);
+  const topY = box.min.y + (size.y * toHeight);
+  const visibleHeight = topY - bottomY;
+  const visibleCenterY = (bottomY + topY) / 2;
   
-  camera.position.set(offsetX, headHeight + offsetY, cameraZ * z_multiplier);
-  camera.lookAt(offsetX, headHeight - 0.1 + offsetY, 0);
+  console.log('📏 Visible region (proportional):', {
+    fromPercent: `${(fromHeight * 100).toFixed(0)}%`,
+    toPercent: `${(toHeight * 100).toFixed(0)}%`,
+    bottomY: bottomY.toFixed(2),
+    topY: topY.toFixed(2),
+    visibleHeight: visibleHeight.toFixed(2),
+    centerY: visibleCenterY.toFixed(2)
+  });
+  
+  // ⬅️ Tính khoảng cách camera theo TỈ LỆ
+  const fovRad = (camera.fov * Math.PI) / 180;
+  const paddingFactor = 1 + VRM_POSITIONING.VERTICAL_PADDING;
+  
+  let distance = (visibleHeight * paddingFactor) / (2 * Math.tan(fovRad / 2));
+  
+  // Zoom in factor
+  distance = distance * 0.75;
+  
+  // ⬅️ Tính horizontal offset theo TỈ LỆ % (nếu model lệch)
+  const horizontalOffset = size.x * VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT;
+  
+  console.log('📐 Camera calculation (proportional):', {
+    fov: camera.fov,
+    visibleHeight: visibleHeight.toFixed(2),
+    verticalPadding: `${(VRM_POSITIONING.VERTICAL_PADDING * 100).toFixed(0)}%`,
+    baseDistance: (distance / 0.75).toFixed(2),
+    zoomFactor: '0.75',
+    finalDistance: distance.toFixed(2),
+    horizontalOffsetPercent: `${(VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT * 100).toFixed(0)}%`,
+    horizontalOffsetValue: horizontalOffset.toFixed(3)
+  });
+  
+  // ⬅️ Đặt camera với horizontal offset (nếu cần)
+  camera.position.set(
+    horizontalOffset,  // X offset theo tỉ lệ %
+    visibleCenterY,    // Y = center vùng visible
+    distance           // Z = khoảng cách tính toán
+  );
+  
+  // ⬅️ Look at cũng theo tỉ lệ
+  camera.lookAt(horizontalOffset, visibleCenterY, 0);
+  
+  console.log('📷 Final camera (proportional):', {
+    position: {
+      x: camera.position.x.toFixed(2),
+      y: camera.position.y.toFixed(2),
+      z: camera.position.z.toFixed(2)
+    },
+    lookAt: {
+      x: horizontalOffset.toFixed(2),
+      y: visibleCenterY.toFixed(2),
+      z: 0
+    },
+    fov: camera.fov
+  });
+}
+
+export function handleCameraResize(
+  camera: THREE.PerspectiveCamera,
+  renderer: THREE.WebGLRenderer,
+  canvas: HTMLCanvasElement
+): void {
+  const config = getResponsiveCanvasConfig();
+  
+  camera.aspect = config.ASPECT_RATIO;
+  camera.updateProjectionMatrix();
+  
+  renderer.setSize(config.WIDTH, config.HEIGHT);
+  canvas.width = config.WIDTH;
+  canvas.height = config.HEIGHT;
 }

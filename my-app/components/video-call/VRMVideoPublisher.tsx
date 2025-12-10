@@ -9,8 +9,9 @@ import { useWebcamStream } from './hooks/useWebcamStream';
 import { useFaceMesh } from './hooks/useFaceMesh';
 import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 import { useFaceTracking } from './hooks/useFaceTracking';
-import { CANVAS_CONFIG } from './utils/constants';
+import { CANVAS_CONFIG, getResponsiveCanvasConfig } from './utils/constants';
 import { clearCanvas } from './utils/canvasHelpers';
+
 
 const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,6 +64,29 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     }
   }, [enabled]);
 
+    useEffect(() => {
+    const updateCanvasSize = () => {
+      const config = getResponsiveCanvasConfig();
+      
+      if (webglCanvasRef.current) {
+        webglCanvasRef.current.width = config.WIDTH;
+        webglCanvasRef.current.height = config.HEIGHT;
+      }
+      
+      if (output2DCanvasRef.current) {
+        output2DCanvasRef.current.width = config.WIDTH;
+        output2DCanvasRef.current.height = config.HEIGHT;
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+
+    return () => {
+      window.removeEventListener('resize', updateCanvasSize);
+    };
+  }, []);
+
   return (
     <>
       <video ref={videoRef} style={{ display: 'none' }} playsInline muted autoPlay />
@@ -71,7 +95,7 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         ref={webglCanvasRef}
         width={CANVAS_CONFIG.WIDTH}
         height={CANVAS_CONFIG.HEIGHT}
-        style={{ display: 'none' }}
+        style={{ transform: 'scaleX(-1)' }}
       />
 
       <canvas
@@ -96,7 +120,9 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
 
       {isLoading && <LoadingOverlay />}
     </>
+    
   );
+
 };
 
 // Debug panel component

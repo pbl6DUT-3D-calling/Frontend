@@ -214,6 +214,7 @@ export default function PreviewMedia({ onSettingsChange }: PreviewMediaProps) {
           playsInline
           muted
           className={`w-full h-full object-cover ${!isCameraOn ? 'hidden' : ''}`}
+          style={{ transform: 'scaleX(-1)' }}
         />
 
         {!isCameraOn && !isLoading && !error && (
