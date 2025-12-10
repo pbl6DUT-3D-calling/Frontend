@@ -21,7 +21,7 @@ export const VRMAvatar = ({
   hideControls = false,
   ...props 
 }) => {
-  console.log("VRMAvatar props - avatar:", avatar);
+  // console.log("VRMAvatar props - avatar:", avatar);
   // console.log("VRMAvatar props - autoPlayIdle:", autoPlayIdle);
   
   // Support both local path and full URL
@@ -61,10 +61,71 @@ export const VRMAvatar = ({
     return clip;
   }, [assetB, currentVrm]);
 
+  // Helper function: Remove neck/head tracks from animation clip
+  const removeHeadTracksFromClip = (clip) => {
+    if (!clip) return clip;
+    
+    // 🔍 DEBUG: Log TẤT CẢ track names để tìm neck/head
+    // console.log(`\n🔍 === ANALYZING ANIMATION "${clip.name}" ===`);
+    // console.log('All track names:');
+    clip.tracks.forEach((track, i) => {
+      const fullName = track.name;
+      const boneName = fullName.split('.')[0];
+      const property = fullName.split('.')[1];
+      //console.log(`  [${i}] ${boneName}.${property}`);
+    });
+    
+    const filteredTracks = clip.tracks.filter(track => {
+      const fullName = track.name;
+      const boneName = fullName.split('.')[0].toLowerCase(); // Case-insensitive
+      
+      // ✅ EXPANDED FILTER: Kiểm tra nhiều patterns hơn
+      const shouldRemove = 
+        boneName.includes('neck') || 
+        boneName.includes('head') ||
+        boneName.includes('cervical') ||     // Anatomical term
+        boneName.includes('cranium') ||      // Anatomical term  
+        boneName === 'mixamoneck' ||         // Mixamo-specific
+        boneName === 'mixamohead' ||         // Mixamo-specific
+        boneName === 'mixamorigneck' ||      // Mixamo rig naming
+        boneName === 'mixamorighead' ||      // Mixamo rig naming
+        boneName.endsWith('_neck') ||        // Underscore variants
+        boneName.endsWith('_head') ||
+        boneName.startsWith('neck_') ||
+        boneName.startsWith('head_');
+      
+      if (shouldRemove) {
+        //console.log(`  ❌ REMOVING: ${fullName}`);
+      }
+      
+      return !shouldRemove;
+    });
+    
+    // Create new clip with filtered tracks
+    const newClip = clip.clone();
+    newClip.tracks = filteredTracks;
+    
+    console.log(`\n🎬 Filtered animation "${clip.name}":`, {
+      originalTracks: clip.tracks.length,
+      filteredTracks: filteredTracks.length,
+      removedTracks: clip.tracks.length - filteredTracks.length
+    });
+    
+    // ⚠️ WARNING if removed < 2 tracks
+    // if (clip.tracks.length - filteredTracks.length < 2) {
+    //   console.warn('⚠️ WARNING: Expected to remove at least 2 tracks (neck + head)!');
+    //   console.warn('   → Check track names above. Neck/Head might use different naming.');
+    // }
+    
+    return newClip;
+  };
+
   const animationClipC = useMemo(() => {
     const clip = remapMixamoAnimationToVrm(currentVrm, assetC);
     clip.name = "Idle";
-    return clip;
+    
+    // ✅ Remove neck/head tracks để face tracking hoàn toàn kiểm soát
+    return removeHeadTracksFromClip(clip);
   }, [assetC, currentVrm]);
 
   const { actions, mixer } = useAnimations(
@@ -75,8 +136,8 @@ export const VRMAvatar = ({
 
   useEffect(() => {
     const vrm = userData.vrm;
-    console.log("VRM loaded:", vrm);
-    console.log("VRM humanoid:", userData.vrm.expressionManager);
+    // console.log("VRM loaded:", vrm);
+    // console.log("VRM humanoid:", userData.vrm.expressionManager);
     // calling these functions greatly improves the performance
     VRMUtils.removeUnnecessaryVertices(scene);
     VRMUtils.combineSkeletons(scene);
@@ -412,46 +473,13 @@ export const VRMAvatar = ({
     
     if (mixer && userData.vrm.humanoid) {
       const neckBone = userData.vrm.humanoid.getNormalizedBoneNode("neck");
-      const headBone = userData.vrm.humanoid.getNormalizedBoneNode("head");
       
       if (hasFaceTracking) {
-        // 🚨 DETECT RESET: Check if neck suddenly reset to bind pose
-        if (neckBone && initialLocalQuats.current.neck) {
-          const currentAngle = neckBone.quaternion.angleTo(initialLocalQuats.current.neck);
-          if (currentAngle < 0.01 && debug.lastNeckQuat && debug.lastNeckQuat.angleTo(initialLocalQuats.current.neck) > 0.3) {
-            console.error(`🚨🚨🚨 RESET DETECTED: Neck quaternion reset to bind pose! (${(currentAngle * 57.3).toFixed(1)}°)`);
-          }
-        }
+        // ✅ Cho phép mixer chạy (animation đã loại bỏ neck/head tracks)
+        mixer.update(delta);
         
-        // Lưu neck/head quaternion trước khi mixer update
-        const savedNeckQuat = neckBone ? neckBone.quaternion.clone() : null;
-        const savedHeadQuat = headBone ? headBone.quaternion.clone() : null;
-        
-        // NGUYÊN NHÂN 2: savedNeckQuat khác nhiều so với frame trước
-        if (debug.lastNeckQuat && savedNeckQuat) {
-          const angle = savedNeckQuat.angleTo(debug.lastNeckQuat);
-          if (angle > 0.5) { // > 28 degrees
-            debug.jitterDetected.push({
-              frame: debug.frameCount,
-              reason: 'NECK_QUAT_JUMP',
-              angle: angle
-            });
-            console.warn('⚠️ JITTER CAUSE 2: Neck quaternion jumped', angle.toFixed(3), 'rad');
-          }
-        }
-        
-        // ✅ TẮT MIXER khi có face tracking - tránh conflict với face animation
-        // mixer.update(delta);  // DISABLED
-        
-        // Không cần restore vì mixer không chạy
-        // if (savedNeckQuat && neckBone) {
-        //   neckBone.quaternion.copy(savedNeckQuat);
-        // }
-        // if (savedHeadQuat && headBone) headBone.quaternion.copy(savedHeadQuat);
-        
-        // ✅ APPLY HEAD ROTATION NGAY SAU RESTORE (không đợi đến cuối useFrame)
+        // ✅ Apply head rotation từ face tracking (không bị animation override vì đã remove tracks)
         if (riggedFaceFromContext?.head && neckBone) {
-          // Dùng tmpEuler và tmpQuat global để tránh alloc
           tmpEuler.set(
             riggedFaceFromContext.head.x * 0.7,
             riggedFaceFromContext.head.y * 0.7, 
@@ -467,36 +495,15 @@ export const VRMAvatar = ({
             neckBone.quaternion.slerp(tmpQuat, delta * 10);
           }
           
-          // Update lastNeckQuat SAU apply để frame sau so sánh đúng
           debug.lastNeckQuat = neckBone.quaternion.clone();
-        } else if (neckBone) {
-          // Không có head tracking - update lastNeckQuat từ saved
-          debug.lastNeckQuat = savedNeckQuat?.clone();
         }
       } else {
-        // Không có face tracking - cho phép animation điều khiển tất cả
+        // Không có face tracking - animation điều khiển tất cả
         mixer.update(delta);
         debug.lastNeckQuat = null;
       }
     } else if (mixer) {
       mixer.update(delta);
-    }
-    
-    // NGUYÊN NHÂN 5: Check nếu mixer đang override neck (saved vs actual)
-    if (hasFaceTracking && mixer && userData.vrm.humanoid) {
-      const neckBone = userData.vrm.humanoid.getNormalizedBoneNode("neck");
-      if (neckBone && debug.lastNeckQuat) {
-        // So sánh neck quaternion TRƯỚC và SAU rotateBone
-        const angleBeforeRotate = neckBone.quaternion.angleTo(debug.lastNeckQuat);
-        if (angleBeforeRotate > 0.3) {
-          console.warn('⚠️ JITTER CAUSE 5: Neck changed between frames', angleBeforeRotate.toFixed(3), 'rad');
-          debug.jitterDetected.push({
-            frame: debug.frameCount,
-            reason: 'NECK_CHANGED_BETWEEN_FRAMES',
-            angle: angleBeforeRotate
-          });
-        }
-      }
     }
     
     // Manual trigger: Gõ window.logJitter() trong console khi thấy giật
@@ -545,10 +552,10 @@ export const VRMAvatar = ({
         
         // 🎯 DEBUG: Log mỗi 3s để verify MediaPipe đang override
         if (!window._lastEyeOverrideLog || Date.now() - window._lastEyeOverrideLog > 3000) {
-          console.log('\n👁️ === EYE CONTROL: MediaPipe Override ===');
-          console.log(`Before (WFLW): L=${(beforeOverride.L || 0).toFixed(3)}, R=${(beforeOverride.R || 0).toFixed(3)}`);
-          console.log(`After (MediaPipe): L=${blendShapes.Blink_L.toFixed(3)}, R=${blendShapes.Blink_R.toFixed(3)}`);
-          console.log(`Source: riggedFace.blink = { l:${riggedFace.current.blink.l.toFixed(3)}, r:${riggedFace.current.blink.r.toFixed(3)} }`);
+          // console.log('\n👁️ === EYE CONTROL: MediaPipe Override ===');
+          // console.log(`Before (WFLW): L=${(beforeOverride.L || 0).toFixed(3)}, R=${(beforeOverride.R || 0).toFixed(3)}`);
+          // console.log(`After (MediaPipe): L=${blendShapes.Blink_L.toFixed(3)}, R=${blendShapes.Blink_R.toFixed(3)}`);
+          // console.log(`Source: riggedFace.blink = { l:${riggedFace.current.blink.l.toFixed(3)}, r:${riggedFace.current.blink.r.toFixed(3)} }`);
           window._lastEyeOverrideLog = Date.now();
         }
       }
@@ -557,18 +564,18 @@ export const VRMAvatar = ({
       const zeroValues = Object.entries(blendShapes).filter(([_, v]) => v === 0 && targetBlendShapes.current[_] > 0.3);
       if (zeroValues.length > 0) {
         console.error('🚨🚨🚨 SOLVER RETURNED 0:', zeroValues.map(([k, _]) => k).join(', '));
-        console.log('   WFLW mouth.shape:', riggedFace.current?.mouth?.shape);
-        console.log('   Solver mouth shapes:', {
-          A: blendShapes.A,
-          E: blendShapes.E,
-          I: blendShapes.I,
-          O: blendShapes.O,
-          U: blendShapes.U,
-          Neutral: blendShapes.Neutral
-        });
-        console.log('   Target before:', Object.entries(targetBlendShapes.current)
-          .filter(([k, v]) => zeroValues.some(([zk]) => zk === k))
-          .map(([k, v]) => `${k}=${v.toFixed(3)}`).join(', '));
+        // console.log('   WFLW mouth.shape:', riggedFace.current?.mouth?.shape);
+        // console.log('   Solver mouth shapes:', {
+        //   A: blendShapes.A,
+        //   E: blendShapes.E,
+        //   I: blendShapes.I,
+        //   O: blendShapes.O,
+        //   U: blendShapes.U,
+        //   Neutral: blendShapes.Neutral
+        // });
+        // console.log('   Target before:', Object.entries(targetBlendShapes.current)
+        //   .filter(([k, v]) => zeroValues.some(([zk]) => zk === k))
+        //   .map(([k, v]) => `${k}=${v.toFixed(3)}`).join(', '));
       }
       
       // 3. Merge vào targetBlendShapes (không replace)
@@ -598,8 +605,20 @@ export const VRMAvatar = ({
     // === LERP BLENDSHAPES TỪ TARGET ===
     // Áp dụng Linear Interpolation để làm mượt
     if (wflwSolver) {
-      const lerpFactor = 0.3; // Tốc độ lerp (0.1 = chậm, 0.5 = nhanh)
-      const decayFactor = 0.05; // Tốc độ fade về 0 khi không có data (1-2 giây)
+      const lerpFactor = 0.3; // Tốc độ lerp khi CÓ target
+      const decayFactor = 0.02; // Giảm decay (fade chậm)
+      const minHoldTime = 100; // Giữ giá trị ít nhất 100ms
+      const confidenceThreshold = 0.15; // ✅ TĂNG từ 0.05 → 0.15 (reject nhiều noise hơn)
+      
+      // Track last update time + consecutive reject count
+      if (!window._blendShapeLastUpdate) {
+        window._blendShapeLastUpdate = {};
+      }
+      if (!window._blendShapeRejectCount) {
+        window._blendShapeRejectCount = {};
+      }
+      
+      const now = Date.now();
       
       // 1. Merge tất cả keys từ target vào current (preserve state)
       Object.keys(targetBlendShapes.current).forEach(name => {
@@ -612,20 +631,67 @@ export const VRMAvatar = ({
       Object.keys(currentBlendShapes.current).forEach(name => {
         const targetValue = targetBlendShapes.current[name];
         const currentValue = currentBlendShapes.current[name] || 0;
+        const lastUpdate = window._blendShapeLastUpdate[name] || 0;
+        const timeSinceUpdate = now - lastUpdate;
+        const rejectCount = window._blendShapeRejectCount[name] || 0;
         
         let newValue;
+        
         if (targetValue !== undefined) {
-          // Có target → lerp tới target
-          newValue = currentValue + (targetValue - currentValue) * lerpFactor;
-          
-          // 🚨 DETECT RESET: Target suddenly became 0 (drop > 0.3)
-          if (currentValue > 0.3 && targetValue < 0.05) {
-            console.error(`🚨🚨🚨 RESET DETECTED: ${name} dropped from ${currentValue.toFixed(3)} → ${targetValue.toFixed(3)}`);
+          // ✅ TIERED CONFIDENCE CHECK:
+          // - Nếu current nhỏ (<0.2): Chấp nhận mọi target
+          // - Nếu current trung bình (0.2-0.5): Reject target < 0.15
+          // - Nếu current lớn (>0.5): Reject target < 0.25 (strict hơn)
+          let threshold = confidenceThreshold;
+          if (currentValue > 0.5) {
+            threshold = 0.25; // Strict threshold for high values
+          } else if (currentValue > 0.3) {
+            threshold = 0.20; // Medium threshold
           }
+          
+          const isSuddenDrop = currentValue > 0.2 && targetValue < threshold;
+          
+          // ✅ FORCED ACCEPT: Sau 60 frames reject liên tiếp, chấp nhận target (tránh stuck)
+          const forceAccept = rejectCount > 60;
+          
+          if (isSuddenDrop && !forceAccept) {
+            // 🚨 REJECT: Giữ giá trị cũ, decay rất chậm
+            newValue = currentValue * (1 - decayFactor * 0.3); // Decay siêu chậm (70% tốc độ bình thường)
+            window._blendShapeRejectCount[name] = rejectCount + 1;
+            
+            // Chỉ log mỗi 30 frames để tránh spam
+            if (rejectCount % 30 === 0) {
+              console.warn(`⚠️ REJECT RESET (${rejectCount}x): ${name} target=${targetValue.toFixed(3)} < threshold=${threshold.toFixed(3)}, keeping current=${currentValue.toFixed(3)}`);
+              if (rejectCount >= 60) {
+                console.warn(`   → Will FORCE ACCEPT on next frame (stuck for too long)`);
+              }
+            }
+          } else {
+            // ✅ ACCEPT: Lerp tới target
+            if (forceAccept) {
+              console.log(`✅ FORCE ACCEPT: ${name} after ${rejectCount} rejects, target=${targetValue.toFixed(3)}`);
+            }
+            
+            // ✅ ADAPTIVE LERP: Lerp chậm hơn nếu gap lớn (tránh jump)
+            const gap = Math.abs(targetValue - currentValue);
+            let adaptiveLerpFactor = lerpFactor;
+            if (gap > 0.5) {
+              adaptiveLerpFactor = lerpFactor * 0.3; // Lerp chậm 3x khi gap lớn
+            } else if (gap > 0.3) {
+              adaptiveLerpFactor = lerpFactor * 0.5; // Lerp chậm 2x
+            }
+            
+            newValue = currentValue + (targetValue - currentValue) * adaptiveLerpFactor;
+            window._blendShapeLastUpdate[name] = now;
+            window._blendShapeRejectCount[name] = 0; // Reset reject count
+          }
+        } else if (timeSinceUpdate < minHoldTime) {
+          // ✅ KHÔNG CÓ target NHƯNG mới update → GIỮ NGUYÊN
+          newValue = currentValue;
         } else {
-          // Không có target → decay về 0
+          // ✅ KHÔNG CÓ target VÀ đã lâu → decay về 0 (chậm)
           newValue = currentValue * (1 - decayFactor);
-          if (Math.abs(newValue) < 0.001) newValue = 0; // Clamp nhỏ về 0
+          if (Math.abs(newValue) < 0.001) newValue = 0;
         }
         
         // Cập nhật giá trị hiện tại
@@ -644,11 +710,11 @@ export const VRMAvatar = ({
           const actualBlinkLeft = userData.vrm.expressionManager.getValue('blinkLeft') || 0;
           const actualBlinkRight = userData.vrm.expressionManager.getValue('blinkRight') || 0;
           
-          console.log('\n🎯 === STAGE 3: VRM APPLIED VALUES (READ FROM MODEL) ===');
-          console.log(`Target → Current → Applied:`);
-          console.log(`  blinkLeft:  ${(targetBlendShapes.current.Blink_L || 0).toFixed(3)} → ${(currentBlendShapes.current.Blink_L || 0).toFixed(3)} → ${actualBlinkLeft.toFixed(3)}`);
-          console.log(`  blinkRight: ${(targetBlendShapes.current.Blink_R || 0).toFixed(3)} → ${(currentBlendShapes.current.Blink_R || 0).toFixed(3)} → ${actualBlinkRight.toFixed(3)}`);
-          console.log(`Logic: 0.0=MỞ, 1.0=NHẮM`);
+          // console.log('\n🎯 === STAGE 3: VRM APPLIED VALUES (READ FROM MODEL) ===');
+          // console.log(`Target → Current → Applied:`);
+          // console.log(`  blinkLeft:  ${(targetBlendShapes.current.Blink_L || 0).toFixed(3)} → ${(currentBlendShapes.current.Blink_L || 0).toFixed(3)} → ${actualBlinkLeft.toFixed(3)}`);
+          // console.log(`  blinkRight: ${(targetBlendShapes.current.Blink_R || 0).toFixed(3)} → ${(currentBlendShapes.current.Blink_R || 0).toFixed(3)} → ${actualBlinkRight.toFixed(3)}`);
+          // console.log(`Logic: 0.0=MỞ, 1.0=NHẮM`);
           
           // Debug: Liệt kê TẤT CẢ expressions có giá trị
           const allExpressions = {};
