@@ -30,4 +30,4 @@ export const FACEMESH_CONFIG = {
   },
 } as const;
 
-export const VRM_MODEL_PATH = '/model3d/1.vrm';
+export const VRM_MODEL_PATH = '/models/7667029464206216702.vrm';

@@ -20,8 +20,18 @@ import { Experience } from "./Experience"
 import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
+import { useModel } from "@/context/modelContext"
 
 export function VideoCallRoom() {
+  const { selectedModelUrl } = useModel() // 🔄 Get selected model from context
+  
+  // 🔍 DEBUG: Log model URL changes
+  useEffect(() => {
+    console.log('🎥 ========== VIDEO CALL ROOM MODEL UPDATE ==========');
+    console.log('🎯 Video Call Room Model URL:', selectedModelUrl);
+    console.log('===================================================');
+  }, [selectedModelUrl]);
+  
   const [isVideoOn, setIsVideoOn] = useState(false) // Camera tắt mặc định
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isInCall, setIsInCall] = useState(true)
@@ -452,7 +462,15 @@ export function VideoCallRoom() {
 
   const toggleVideo = () => {
     console.log("Toggle Video - Bật/tắt camera")
-    setIsVideoOn(!isVideoOn)
+    const newState = !isVideoOn
+    
+    // Nếu tắt camera, reset riggedFace về null để trở về idle
+    if (!newState) {
+      console.log("📹 Camera turning OFF - Resetting to idle pose")
+      setRiggedFace(null)
+    }
+    
+    setIsVideoOn(newState)
   }
   
   const toggleAudio = () => {
@@ -487,7 +505,7 @@ export function VideoCallRoom() {
                 <color attach="background" args={["#333"]} />
                 <fog attach="fog" args={["#333", 10, 20]} />
                 <Suspense fallback={null}>
-                  <Experience />
+                  <Experience key={`videocall-${selectedModelUrl}`} modelUrl={selectedModelUrl} />
                 </Suspense>
               </Canvas>
             )}

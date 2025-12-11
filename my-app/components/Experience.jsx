@@ -1,25 +1,30 @@
 import { CameraControls, Environment, Gltf } from "@react-three/drei";
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
-import { useControls } from "leva";
+// import { useControls } from "leva";
 import { useRef } from "react";
 import { VRMAvatar } from "./VRMAvatar";
 
-export const Experience = () => {
+export const Experience = ({ modelUrl }) => {
   const controls = useRef();
 
-  const { avatar } = useControls("VRM", {
-    avatar: {
-      value: "7667029464206216702.vrm",
-      options: [
-        "262410318834873893.vrm",
-        "3859814441197244330.vrm",
-        "3636451243928341470.vrm",
-        "8087383217573817818.vrm",
-        "7667029464206216702.vrm",
-        "1460281130622983526.vrm"
-      ],
-    },
-  });
+  // ❌ COMMENTED OUT: Use modelUrl prop directly from context, no Leva controls
+  // const { avatar: levaAvatar } = useControls("VRM", {
+  //   avatar: {
+  //     value: "7667029464206216702.vrm",
+  //     options: [
+  //       "firefly.vrm",
+  //       "262410318834873893.vrm",
+  //       "3859814441197244330.vrm",
+  //       "3636451243928341470.vrm",
+  //       "8087383217573817818.vrm",
+  //       "7667029464206216702.vrm",
+  //       "1460281130622983526.vrm"
+  //     ],
+  //   },
+  // });
+  
+  // ✅ Use modelUrl directly from ModelContext (via video-call-room.tsx)
+  const avatar = modelUrl;
 
   return (
     <>
@@ -39,7 +44,7 @@ export const Experience = () => {
       <directionalLight intensity={2} position={[10, 10, 5]} />
       <directionalLight intensity={1} position={[-10, 10, 5]} />
       <group position-y={-1.25}>
-        <VRMAvatar avatar={avatar} />
+        <VRMAvatar key={`videocall-avatar-${avatar}`} avatar={avatar} />
         {/* <Gltf
           src="models/sound-stage-final.glb"
           position-z={-1.4}

@@ -60,15 +60,34 @@ export function adjustCameraForVRM(
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   
-  const maxDim = Math.max(size.x, size.y, size.z);
+  // Lấy aspect ratio thực tế từ camera
+  const aspect = camera.aspect;
+  
+  // Tính toán khoảng cách camera dựa trên cả chiều rộng và chiều cao
   const fov = camera.fov * (Math.PI / 180);
-  let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+  const fovH = 2 * Math.atan(Math.tan(fov / 2) * aspect); // Horizontal FOV
   
-  cameraZ *= 1.3;
+  // Tính khoảng cách cần thiết để fit model theo cả 2 chiều
+  const cameraZVertical = Math.abs(size.y / 2 / Math.tan(fov / 2));
+  const cameraZHorizontal = Math.abs(size.x / 2 / Math.tan(fovH / 2));
   
+  // Chọn khoảng cách lớn hơn để model vừa khung hình
+  let cameraZ = Math.max(cameraZVertical, cameraZHorizontal);
+  
+  // Thêm padding
+  cameraZ *= 0.9;
+  
+  // Đặt camera nhìn vào trung tâm model (đặc biệt là vùng đầu)
   const headHeight = center.y + size.y * 0.35;
   const { x: offsetX, y: offsetY, z_multiplier } = CAMERA_CONFIG.OFFSET;
   
-  camera.position.set(offsetX, headHeight + offsetY, cameraZ * z_multiplier);
-  camera.lookAt(offsetX, headHeight - 0.1 + offsetY, 0);
+  // Đặt camera position - chỉ dùng offset để fine-tune, không ảnh hưởng centering
+  camera.position.set(
+    center.x ,  
+    headHeight , 
+    cameraZ * z_multiplier
+  );
+  
+  // LookAt vào center của model (vùng đầu)
+  camera.lookAt(center.x + offsetX, headHeight -0.1 + offsetY , 0);
 }

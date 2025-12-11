@@ -19,10 +19,14 @@ export const VRMAvatar = ({
   externalAnimation = null,
   externalExpressions = {},
   hideControls = false,
+  disableFaceTracking = false,
   ...props 
 }) => {
-  // console.log("VRMAvatar props - avatar:", avatar);
-  // console.log("VRMAvatar props - autoPlayIdle:", autoPlayIdle);
+  console.log("🎭 VRMAvatar mounted/updated:", { 
+    avatar, 
+    disableFaceTracking,
+    hasExternalAnimation: !!externalAnimation 
+  });
   
   // Support both local path and full URL
   // Check if path already starts with 'models/' or is a full URL
@@ -247,7 +251,10 @@ export const VRMAvatar = ({
   }, [resultsCallback]);
 
   // Nhận riggedFace trực tiếp từ context (WFLW data)
-  const riggedFaceFromContext = useVideoRecognition((state) => state.riggedFace);
+  // Disable face tracking trong preview mode
+  const riggedFaceFromContext = useVideoRecognition((state) => 
+    disableFaceTracking ? null : state.riggedFace
+  );
   
   // Import WFLW face solver
   const [wflwSolver, setWflwSolver] = useState(null);
@@ -481,7 +488,7 @@ export const VRMAvatar = ({
         // ✅ Apply head rotation từ face tracking (không bị animation override vì đã remove tracks)
         if (riggedFaceFromContext?.head && neckBone) {
           tmpEuler.set(
-            riggedFaceFromContext.head.x * 0.7,
+            riggedFaceFromContext.head.x * 1.0,
             riggedFaceFromContext.head.y * 0.7, 
             riggedFaceFromContext.head.z * 0.7
           );
@@ -499,6 +506,29 @@ export const VRMAvatar = ({
         }
       } else {
         // Không có face tracking - animation điều khiển tất cả
+        // ✅ RESET expressions và head rotation về idle state
+        if (targetBlendShapes.current && Object.keys(targetBlendShapes.current).length > 0) {
+          console.log('🔄 No face tracking - Clearing expressions and resetting head rotation');
+          targetBlendShapes.current = {};
+          currentBlendShapes.current = {};
+          
+          // Reset tất cả expressions về 0
+          if (userData.vrm && wflwSolver) {
+            wflwSolver.applyBlendShapesToVRM(userData.vrm, {});
+          }
+          
+          // Reset neck/head rotation về initial pose
+          const neckBone = userData.vrm.humanoid?.getNormalizedBoneNode('neck');
+          const headBone = userData.vrm.humanoid?.getNormalizedBoneNode('head');
+          
+          if (neckBone && initialLocalQuats.current["neck"]) {
+            neckBone.quaternion.slerp(initialLocalQuats.current["neck"], delta * 5);
+          }
+          if (headBone && initialLocalQuats.current["head"]) {
+            headBone.quaternion.slerp(initialLocalQuats.current["head"], delta * 5);
+          }
+        }
+        
         mixer.update(delta);
         debug.lastNeckQuat = null;
       }
