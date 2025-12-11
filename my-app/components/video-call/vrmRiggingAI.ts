@@ -12,6 +12,29 @@ const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(max, value));
 };
 
+// ⬅️ NEW: Smoothing filter để giảm jitter
+class SmoothingFilter {
+  private history: number[] = [];
+  private maxHistory = 5;
+
+  smooth(value: number): number {
+    this.history.push(value);
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+    return this.history.reduce((a, b) => a + b, 0) / this.history.length;
+  }
+
+  reset() {
+    this.history = [];
+  }
+}
+
+// ⬅️ Global smoothing filters
+const pitchFilter = new SmoothingFilter();
+const yawFilter = new SmoothingFilter();
+const rollFilter = new SmoothingFilter();
+
 // Convert AI Server's 98 landmarks to facial features
 function extractFacialFeatures(landmarks: AIServerLandmark[]) {
   if (landmarks.length !== 98) {
@@ -19,19 +42,12 @@ function extractFacialFeatures(landmarks: AIServerLandmark[]) {
     return null;
   }
 
-  // WFLW 98 landmarks mapping
-  // Eyes: 60-67 (left), 68-75 (right)
   const leftEye = landmarks.slice(60, 68);
   const rightEye = landmarks.slice(68, 76);
-
-  // Mouth: 76-95
   const mouth = landmarks.slice(76, 96);
 
-  // Eye openness (distance between upper and lower eyelid)
   const leftEyeOpenness = calculateEyeOpenness(leftEye);
   const rightEyeOpenness = calculateEyeOpenness(rightEye);
-
-  // Mouth openness
   const mouthOpenness = calculateMouthOpenness(mouth);
 
   return {
@@ -44,21 +60,14 @@ function extractFacialFeatures(landmarks: AIServerLandmark[]) {
 function calculateEyeOpenness(eyeLandmarks: AIServerLandmark[]): number {
   if (eyeLandmarks.length < 8) return 1;
 
-  // Vertical distance between upper and lower eyelid
-  const upper = eyeLandmarks[1].y;
-  const lower = eyeLandmarks[5].y;
-  const height = Math.abs(lower - upper);
-
-  // Horizontal distance (eye width)
-  const left = eyeLandmarks[0].x;
-  const right = eyeLandmarks[3].x;
-  const width = Math.abs(right - left);
-
-  // Eye aspect ratio
-  const ratio = height / (width + 0.001);
-
-  // Normalize (typical ratio ~0.2-0.3 when open, <0.15 when closed)
-  const openness = clamp(ratio / 0.25, 0, 1);
+  const d1 = Math.abs(eyeLandmarks[1].y - eyeLandmarks[7].y);
+  const d2 = Math.abs(eyeLandmarks[2].y - eyeLandmarks[6].y);
+  const d3 = Math.abs(eyeLandmarks[3].y - eyeLandmarks[5].y);
+  
+  const avgHeight = (d1 + d2 + d3) / 3;
+  const width = Math.abs(eyeLandmarks[4].x - eyeLandmarks[0].x);
+  const ratio = avgHeight / (width + 0.001);
+  const openness = clamp((ratio - 0.05) / 0.2, 0, 1);
 
   return openness;
 }
@@ -66,21 +75,22 @@ function calculateEyeOpenness(eyeLandmarks: AIServerLandmark[]): number {
 function calculateMouthOpenness(mouthLandmarks: AIServerLandmark[]): number {
   if (mouthLandmarks.length < 20) return 0;
 
-  // Vertical distance between upper and lower lip
-  const upper = mouthLandmarks[2].y;
-  const lower = mouthLandmarks[8].y;
-  const height = Math.abs(lower - upper);
+  const outerTop = mouthLandmarks[2].y;
+  const outerBottom = mouthLandmarks[8].y;
+  const outerHeight = Math.abs(outerBottom - outerTop);
 
-  // Horizontal distance (mouth width)
+  const innerTop = mouthLandmarks[13].y;
+  const innerBottom = mouthLandmarks[17].y;
+  const innerHeight = Math.abs(innerBottom - innerTop);
+
+  const avgHeight = (outerHeight + innerHeight) / 2;
+
   const left = mouthLandmarks[0].x;
   const right = mouthLandmarks[6].x;
   const width = Math.abs(right - left);
 
-  // Mouth aspect ratio
-  const ratio = height / (width + 0.001);
-
-  // Normalize (typical ratio ~0.4 when open)
-  const openness = clamp(ratio / 0.4, 0, 1);
+  const ratio = avgHeight / (width + 0.001);
+  const openness = clamp((ratio - 0.05) / 0.4, 0, 1);
 
   return openness;
 }
@@ -94,11 +104,9 @@ export const animateVRMWithAI = (
 
   const { pitch, yaw, roll, landmarks } = result;
 
-  // Extract facial features from 98 landmarks
   const features = extractFacialFeatures(landmarks);
   if (!features) return;
 
-  // Apply rigging
   rigFaceAI(vrm, pitch, yaw, roll, features, delta);
 };
 
@@ -119,9 +127,7 @@ const rigFaceAI = (
   if (!vrm?.expressionManager) return;
 
   const expressionManager = vrm.expressionManager;
-
-  // Lerp amount cho smooth animation
-  const lerpAmount = delta * 15;
+  const lerpAmount = Math.min(delta * 20, 0.5);
 
   const lerpExpression = (name: string, targetValue: number) => {
     const current = expressionManager.getValue(name) || 0;
@@ -130,57 +136,65 @@ const rigFaceAI = (
   };
 
   // === HEAD ROTATION ===
-  // Convert degrees to radians và đảo ngược để match VRM
-  const pitchRad = (-pitch * Math.PI) / 180;
-  const yawRad = (-yaw * Math.PI) / 180;
-  const rollRad = (-roll * Math.PI) / 180;
+  // ⬅️ FIX 1: Clamp angles để tránh extreme values
+  const clampedPitch = clamp(pitch, -45, 45);   // Max ±45° (cúi/ngẩng)
+  const clampedYaw = clamp(yaw, -60, 60);       // Max ±60° (trái/phải)
+  const clampedRoll = clamp(roll, -30, 30);     // Max ±30° (nghiêng)
 
+  // ⬅️ FIX 2: Apply smoothing
+  const smoothPitch = pitchFilter.smooth(clampedPitch);
+  const smoothYaw = yawFilter.smooth(clampedYaw);
+  const smoothRoll = rollFilter.smooth(clampedRoll);
+
+  // ⬅️ FIX 3: Convert to radians với sign ĐÚNG
+  const pitchRad = (-smoothPitch * Math.PI) / 180;  // Pitch: âm = ngẩng lên
+  const yawRad = (smoothYaw * Math.PI) / 180;       // Yaw: dương = quay trái
+  const rollRad = (smoothRoll * Math.PI) / 180;     // Roll: dương = nghiêng trái
+
+  // ⬅️ FIX 4: Giảm dampener để KHÔNG bị over-rotate
   rigRotation(
     'neck',
-    {
-      x: pitchRad,
-      y: yawRad,
-      z: rollRad,
-    },
-    0.5, // dampener
-    lerpAmount,
+    { x: pitchRad, y: yawRad, z: rollRad },
+    0.5,  // Giảm từ 0.7 xuống 0.5 (tránh gimbal lock)
+    lerpAmount * 1.2,  // Giảm từ 1.5 xuống 1.2
     vrm
   );
 
   // === EYES ===
-  // Blink (1 - openness vì blinkLeft/Right là mức độ nhắm mắt)
-  lerpExpression('blinkLeft', 1 - features.leftEyeOpenness);
-  lerpExpression('blinkRight', 1 - features.rightEyeOpenness);
+  const blinkThreshold = 0.5;
+
+  const leftBlink = features.leftEyeOpenness < blinkThreshold 
+    ? 1 - features.leftEyeOpenness / blinkThreshold 
+    : 0;
+  const rightBlink = features.rightEyeOpenness < blinkThreshold 
+    ? 1 - features.rightEyeOpenness / blinkThreshold 
+    : 0;
+
+  lerpExpression('blinkLeft', leftBlink);
+  lerpExpression('blinkRight', rightBlink);
 
   // === MOUTH ===
-  // Map mouth openness to vowel shapes
   const mouthOpen = features.mouthOpenness;
 
-  if (mouthOpen > 0.6) {
-    // Wide open = "A" sound
+  if (mouthOpen > 0.7) {
     lerpExpression('aa', mouthOpen);
     lerpExpression('oh', 0);
     lerpExpression('ou', 0);
-  } else if (mouthOpen > 0.3) {
-    // Medium open = "O" sound
+  } else if (mouthOpen > 0.4) {
     lerpExpression('aa', 0);
-    lerpExpression('oh', mouthOpen * 1.5);
+    lerpExpression('oh', (mouthOpen - 0.4) / 0.3);
     lerpExpression('ou', 0);
-  } else if (mouthOpen > 0.1) {
-    // Small open = "U" sound
+  } else if (mouthOpen > 0.15) {
     lerpExpression('aa', 0);
     lerpExpression('oh', 0);
-    lerpExpression('ou', mouthOpen * 2);
+    lerpExpression('ou', (mouthOpen - 0.15) / 0.25);
   } else {
-    // Closed
     lerpExpression('aa', 0);
     lerpExpression('oh', 0);
     lerpExpression('ou', 0);
+    lerpExpression('ee', 0);
+    lerpExpression('ih', 0);
   }
-
-  // Default neutral for other shapes
-  lerpExpression('ee', 0);
-  lerpExpression('ih', 0);
 };
 
 export const rigRotation = (
@@ -193,10 +207,12 @@ export const rigRotation = (
   const bone = vrm.humanoid?.getNormalizedBoneNode(name as any);
   if (!bone) return;
 
+  // ⬅️ FIX 5: Dùng YXZ order để tránh gimbal lock
   const targetEuler = new Euler(
     rotation.x * dampener,
     rotation.y * dampener,
-    rotation.z * dampener
+    rotation.z * dampener,
+    'YXZ'  // ⬅️ QUAN TRỌNG: YXZ order (yaw → pitch → roll)
   );
 
   const targetQuat = new Quaternion().setFromEuler(targetEuler);

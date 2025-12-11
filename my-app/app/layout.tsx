@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { AuthProvider } from "@/context/authContext"  
 import AuthWrapper from "@/components/AuthWrapper"
+import { VRMProvider } from "@/context/vrmContext"
+
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -30,7 +32,9 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
       <body className="min-h-screen bg-background font-sans antialiased">
           <AuthWrapper>
+          <VRMProvider>
             {children}
+          </VRMProvider>
           </AuthWrapper>
         </body>
     </html>

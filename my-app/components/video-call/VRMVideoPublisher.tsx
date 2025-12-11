@@ -4,33 +4,50 @@ import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { VRMVideoPublisherProps } from './types';
 import { useThreeScene } from './hooks/useThreeScene';
-import { useVRMLoader } from './hooks/useVRMLoader';
 import { useWebcamStream } from './hooks/useWebcamStream';
 import { useAITracking } from './hooks/useAITracking'; // ⬅️ THAY ĐỔI
 import { useCanvasRenderer } from './hooks/useCanvasRenderer';
 import { CANVAS_CONFIG, getResponsiveCanvasConfig } from './utils/constants';
 import { clearCanvas } from './utils/canvasHelpers';
+import { useVRM } from "../../context/vrmContext";
 
 const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
   const output2DCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const clockRef = useRef(new THREE.Clock());
+  const { currentVrm } = useVRM();
 
   // Setup Three.js scene
   const { scene, renderer, camera } = useThreeScene(webglCanvasRef);
 
-  // Load VRM model
-  const { vrm, isLoading } = useVRMLoader(scene, camera);
-
   // Setup webcam
   const { isCameraReady } = useWebcamStream(videoRef, webcamStream);
+
+  useEffect(() => {
+    if (!scene || !currentVrm) return;
+
+    if (!scene.children.includes(currentVrm.scene)) {
+      currentVrm.scene.position.set(0, -1, 0);
+      currentVrm.scene.rotation.y = Math.PI;
+      currentVrm.scene.scale.setScalar(1);
+      
+      scene.add(currentVrm.scene);
+      console.log('✅ Added VRM to video call scene');
+    }
+
+    return () => {
+      if (scene && currentVrm) {
+        scene.remove(currentVrm.scene);
+      }
+    };
+  }, [scene, currentVrm]);
 
   // ⬅️ THAY ĐỔI: Dùng AI Server thay vì MediaPipe
   const { aiClient, isConnected, isReady } = useAITracking(
     enabled,
     videoRef,
-    vrm,
+    currentVrm,
     clockRef
   );
 
@@ -42,8 +59,8 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     enabled,
     isCameraReady,
     webcamStream,
-    isLoading,
-    vrm,
+    false,
+    currentVrm,
     renderer,
     scene,
     camera,
@@ -103,16 +120,15 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         <DebugPanel
           enabled={enabled}
           isCameraReady={isCameraReady}
-          isLoading={isLoading}
-          hasVRM={!!vrm}
+          hasVRM={!!currentVrm}
           aiConnected={isConnected} // ⬅️ THAY ĐỔI
           aiReady={isReady} // ⬅️ THAY ĐỔI
           webcamStream={webcamStream}
           videoRef={videoRef}
         />
       )}
-
-      {isLoading && <LoadingOverlay />}
+{/* 
+      {isLoading && <LoadingOverlay />} */}
     </>
   );
 };
@@ -121,13 +137,20 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
 function DebugPanel({
   enabled,
   isCameraReady,
-  isLoading,
   hasVRM,
   aiConnected,
   aiReady,
   webcamStream,
   videoRef,
-}: any) {
+}: {
+  enabled: boolean;
+  isCameraReady: boolean;
+  hasVRM: boolean; // ⬅️ THÊM hasVRM
+  aiConnected: boolean;
+  aiReady: boolean;
+  webcamStream: MediaStream | null;
+  videoRef: React.RefObject<HTMLVideoElement>;
+}) {
   return (
     <div
       style={{
@@ -161,8 +184,8 @@ function DebugPanel({
       </div>
       <div>
         VRM Loaded:{' '}
-        <span style={{ color: !isLoading && hasVRM ? '#10b981' : '#ef4444' }}>
-          {!isLoading && hasVRM ? '✓' : '✗'}
+        <span style={{ color: hasVRM ? '#10b981' : '#ef4444' }}>
+          { hasVRM ? '✓' : '✗'}
         </span>
       </div>
       <div>
@@ -196,24 +219,5 @@ function DebugPanel({
   );
 }
 
-function LoadingOverlay() {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        color: 'white',
-        background: 'rgba(0,0,0,0.7)',
-        padding: '10px 20px',
-        borderRadius: '8px',
-        zIndex: 9999,
-      }}
-    >
-      Loading 3D Model...
-    </div>
-  );
-}
 
 export default React.memo(VRMVideoPublisherComponent);

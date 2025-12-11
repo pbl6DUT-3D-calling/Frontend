@@ -47,7 +47,7 @@ export const VRM_POSITIONING = {
   HORIZONTAL_OFFSET_PERCENT: 0.1,  // 0% = center hoàn toàn
 } as const;
 
-export const VRM_MODEL_PATH = '/models/firefly.vrm';
+export const VRM_MODEL_PATH = '/models/1.vrm';
 
 export const FACEMESH_CONFIG = {
   SCRIPT_URL: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js',

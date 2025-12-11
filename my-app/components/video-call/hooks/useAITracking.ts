@@ -13,6 +13,9 @@ export function useAITracking(
   const [isReady, setIsReady] = useState(false);
   const aiClientRef = useRef<AIServerClient | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  const isPendingRef = useRef(false);
+  const lastResultRef = useRef<AIServerResult | null>(null);
 
   // Initialize AI Client
   useEffect(() => {
@@ -23,11 +26,16 @@ export function useAITracking(
       }
       setIsConnected(false);
       setIsReady(false);
+      isPendingRef.current = false;
+      lastResultRef.current = null;
       return;
     }
 
+    const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || 'ws://localhost:8000/ws/face-tracking';
+    console.log('🔌 Connecting to AI Server:', wsUrl);
+
     const aiClient = new AIServerClient(
-      process.env.NEXT_PUBLIC_AI_WS_URL || 'ws://localhost:8000/ws/face-tracking',
+      wsUrl,
       () => {
         setIsConnected(true);
         setIsReady(true);
@@ -46,23 +54,34 @@ export function useAITracking(
 
     aiClientRef.current = aiClient;
 
-    // Handle AI results
+    // ⬅️ FIX: Handle results ĐÚNG CÁCH
     aiClient.onResult((result: AIServerResult) => {
-      if (!vrm || !enabled) return;
+      // Reset pending NGAY KHI NHẬN ĐƯỢC RESULT
+      isPendingRef.current = false;
 
-      const deltaTime = clock.current.getDelta();
-      animateVRMWithAI(vrm, result, deltaTime);
+      if (!result.found) {
+        console.log('⚠️ No face detected');
+        return;
+      }
+
+      // Lưu result mới nhất
+      lastResultRef.current = result;
+
+      // ⬅️ QUAN TRỌNG: Animate NGAY tại đây (không đợi requestAnimationFrame)
+      if (vrm && enabled) {
+        const deltaTime = clock.current.getDelta();
+        animateVRMWithAI(vrm, result, deltaTime);
+      }
     });
 
-    // Connect to server
     aiClient.connect().catch((error) => {
       console.error('Failed to connect to AI Server:', error);
     });
 
-    // Create hidden canvas for image processing
+    // Canvas nhỏ hơn cho faster processing
     const canvas = document.createElement('canvas');
-    canvas.width = 240;
-    canvas.height = 180;
+    canvas.width = 160;
+    canvas.height = 120;
     canvasRef.current = canvas;
 
     return () => {
@@ -72,8 +91,16 @@ export function useAITracking(
       }
       setIsConnected(false);
       setIsReady(false);
+      isPendingRef.current = false;
+      lastResultRef.current = null;
     };
   }, [enabled, vrm, clock]);
+
+  // ⬅️ XÓA animation loop này đi (CONFLICT với onResult callback)
+  // useEffect(() => {
+  //   if (!enabled || !vrm || !lastResultRef.current) return;
+  //   ...animation loop...
+  // }, [enabled, vrm, clock]);
 
   // Send frames to AI Server
   useEffect(() => {
@@ -83,6 +110,7 @@ export function useAITracking(
 
     let isActive = true;
     let frameInterval: NodeJS.Timeout;
+    let frameCount = 0;
 
     const sendFrame = () => {
       if (!isActive || !aiClientRef.current?.isConnected()) return;
@@ -94,33 +122,50 @@ export function useAITracking(
         return;
       }
 
+      // ⬅️ FIX: Skip logic ĐÚNG
+      if (isPendingRef.current) {
+        // KHÔNG log mỗi frame skip (spam console)
+        return;
+      }
+
       try {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Resize và vẽ video lên canvas (240x180 như server mong đợi)
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Convert to base64 (không có prefix)
-        canvas.toBlob((blob) => {
-          if (!blob || !isActive) return;
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || !isActive) return;
 
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            if (!isActive) return;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (!isActive || isPendingRef.current) return;
 
-            const base64 = (reader.result as string).split(',')[1]; // Bỏ prefix
-            aiClientRef.current?.sendFrame(base64);
-          };
-          reader.readAsDataURL(blob);
-        }, 'image/jpeg', 0.8);
+              const base64 = (reader.result as string).split(',')[1];
+              
+              // Set pending TRƯỚC KHI gửi
+              isPendingRef.current = true;
+              aiClientRef.current?.sendFrame(base64);
+
+              frameCount++;
+              if (frameCount % 30 === 0) {
+                console.log(`📤 Sent ${frameCount} frames to AI Server`);
+              }
+            };
+            reader.readAsDataURL(blob);
+          },
+          'image/jpeg',
+          0.7
+        );
       } catch (error) {
-        console.error('Error sending frame to AI Server:', error);
+        console.error('Error sending frame:', error);
+        isPendingRef.current = false; // Reset on error
       }
     };
 
-    // Send frame every 33ms (30 FPS)
-    frameInterval = setInterval(sendFrame, 33);
+    // ⬅️ FIX: 25 FPS (balance giữa smooth và performance)
+    frameInterval = setInterval(sendFrame, 40); // 40ms = 25 FPS
 
     return () => {
       isActive = false;
