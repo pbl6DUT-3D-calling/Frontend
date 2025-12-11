@@ -6,12 +6,10 @@ import { VRMVideoPublisherProps } from './types';
 import { useThreeScene } from './hooks/useThreeScene';
 import { useVRMLoader } from './hooks/useVRMLoader';
 import { useWebcamStream } from './hooks/useWebcamStream';
-import { useFaceMesh } from './hooks/useFaceMesh';
+import { useAITracking } from './hooks/useAITracking'; // ⬅️ THAY ĐỔI
 import { useCanvasRenderer } from './hooks/useCanvasRenderer';
-import { useFaceTracking } from './hooks/useFaceTracking';
 import { CANVAS_CONFIG, getResponsiveCanvasConfig } from './utils/constants';
 import { clearCanvas } from './utils/canvasHelpers';
-
 
 const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -28,8 +26,13 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
   // Setup webcam
   const { isCameraReady } = useWebcamStream(videoRef, webcamStream);
 
-  // Setup FaceMesh
-  const { faceMesh, faceMeshReady } = useFaceMesh(enabled, videoRef, vrm, clockRef);
+  // ⬅️ THAY ĐỔI: Dùng AI Server thay vì MediaPipe
+  const { aiClient, isConnected, isReady } = useAITracking(
+    enabled,
+    videoRef,
+    vrm,
+    clockRef
+  );
 
   // Canvas rendering
   useCanvasRenderer(
@@ -47,16 +50,6 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     clockRef
   );
 
-  // Face tracking
-  useFaceTracking(
-    enabled,
-    isCameraReady,
-    faceMeshReady,
-    videoRef,
-    webcamStream,
-    faceMesh
-  );
-
   // Clear canvas on mode toggle
   useEffect(() => {
     if (output2DCanvasRef.current) {
@@ -64,15 +57,15 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     }
   }, [enabled]);
 
-    useEffect(() => {
+  useEffect(() => {
     const updateCanvasSize = () => {
       const config = getResponsiveCanvasConfig();
-      
+
       if (webglCanvasRef.current) {
         webglCanvasRef.current.width = config.WIDTH;
         webglCanvasRef.current.height = config.HEIGHT;
       }
-      
+
       if (output2DCanvasRef.current) {
         output2DCanvasRef.current.width = config.WIDTH;
         output2DCanvasRef.current.height = config.HEIGHT;
@@ -112,7 +105,8 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
           isCameraReady={isCameraReady}
           isLoading={isLoading}
           hasVRM={!!vrm}
-          faceMeshReady={faceMeshReady}
+          aiConnected={isConnected} // ⬅️ THAY ĐỔI
+          aiReady={isReady} // ⬅️ THAY ĐỔI
           webcamStream={webcamStream}
           videoRef={videoRef}
         />
@@ -120,54 +114,103 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
 
       {isLoading && <LoadingOverlay />}
     </>
-    
   );
-
 };
 
-// Debug panel component
-function DebugPanel({ enabled, isCameraReady, isLoading, hasVRM, faceMeshReady, webcamStream, videoRef }: any) {
+// ⬅️ CẬP NHẬT Debug Panel
+function DebugPanel({
+  enabled,
+  isCameraReady,
+  isLoading,
+  hasVRM,
+  aiConnected,
+  aiReady,
+  webcamStream,
+  videoRef,
+}: any) {
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '100px',
-      right: '10px',
-      color: 'white',
-      background: 'rgba(0,0,0,0.9)',
-      padding: '15px',
-      borderRadius: '8px',
-      fontSize: '12px',
-      fontFamily: 'monospace',
-      zIndex: 9999,
-      minWidth: '200px',
-    }}>
-      <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '14px' }}>Debug Info</div>
-      <div>3D Enabled: <span style={{ color: enabled ? '#10b981' : '#ef4444' }}>{enabled ? '✓' : '✗'}</span></div>
-      <div>Camera Ready: <span style={{ color: isCameraReady ? '#10b981' : '#ef4444' }}>{isCameraReady ? '✓' : '✗'}</span></div>
-      <div>VRM Loaded: <span style={{ color: !isLoading && hasVRM ? '#10b981' : '#ef4444' }}>{!isLoading && hasVRM ? '✓' : '✗'}</span></div>
-      <div>FaceMesh Ready: <span style={{ color: faceMeshReady ? '#10b981' : '#ef4444' }}>{faceMeshReady ? '✓' : '✗'}</span></div>
-      <div>Webcam: <span style={{ color: webcamStream ? '#10b981' : '#ef4444' }}>{webcamStream ? '✓' : '✗'}</span></div>
-      <div>Video Ready: <span style={{ color: videoRef.current?.readyState === 4 ? '#10b981' : '#ef4444' }}>
-        {videoRef.current?.readyState || 0}
-      </span></div>
-      <div>Video Size: {videoRef.current?.videoWidth || 0}x{videoRef.current?.videoHeight || 0}</div>
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '100px',
+        right: '10px',
+        color: 'white',
+        background: 'rgba(0,0,0,0.9)',
+        padding: '15px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontFamily: 'monospace',
+        zIndex: 9999,
+        minWidth: '200px',
+      }}
+    >
+      <div style={{ marginBottom: '10px', fontWeight: 'bold', fontSize: '14px' }}>
+        Debug Info
+      </div>
+      <div>
+        3D Enabled:{' '}
+        <span style={{ color: enabled ? '#10b981' : '#ef4444' }}>
+          {enabled ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        Camera Ready:{' '}
+        <span style={{ color: isCameraReady ? '#10b981' : '#ef4444' }}>
+          {isCameraReady ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        VRM Loaded:{' '}
+        <span style={{ color: !isLoading && hasVRM ? '#10b981' : '#ef4444' }}>
+          {!isLoading && hasVRM ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        AI Connected:{' '}
+        <span style={{ color: aiConnected ? '#10b981' : '#ef4444' }}>
+          {aiConnected ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        AI Ready:{' '}
+        <span style={{ color: aiReady ? '#10b981' : '#ef4444' }}>
+          {aiReady ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        Webcam:{' '}
+        <span style={{ color: webcamStream ? '#10b981' : '#ef4444' }}>
+          {webcamStream ? '✓' : '✗'}
+        </span>
+      </div>
+      <div>
+        Video Ready:{' '}
+        <span style={{ color: videoRef.current?.readyState === 4 ? '#10b981' : '#ef4444' }}>
+          {videoRef.current?.readyState || 0}
+        </span>
+      </div>
+      <div>
+        Video Size: {videoRef.current?.videoWidth || 0}x{videoRef.current?.videoHeight || 0}
+      </div>
     </div>
   );
 }
 
 function LoadingOverlay() {
   return (
-    <div style={{
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      color: 'white',
-      background: 'rgba(0,0,0,0.7)',
-      padding: '10px 20px',
-      borderRadius: '8px',
-      zIndex: 9999,
-    }}>
+    <div
+      style={{
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        color: 'white',
+        background: 'rgba(0,0,0,0.7)',
+        padding: '10px 20px',
+        borderRadius: '8px',
+        zIndex: 9999,
+      }}
+    >
       Loading 3D Model...
     </div>
   );

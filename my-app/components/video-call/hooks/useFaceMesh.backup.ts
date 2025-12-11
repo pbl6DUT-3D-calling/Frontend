@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { VRM } from '@pixiv/three-vrm';
-import { animateVRMFace } from '../vrmRigging';
+import { animateVRMFace } from '../vrmRigging.mediapipe.backup';
 import { FACEMESH_CONFIG } from '../utils/constants';
 
 export function useFaceMesh(
