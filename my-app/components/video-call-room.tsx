@@ -284,20 +284,27 @@ export function VideoCallRoom() {
             // Convert WFLW to VRM format - Dùng resolution mới
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
-            // 🔀 MERGE: Override blink từ MediaPipe (nếu có)
+            // ✅ OVERRIDE: MediaPipe 100% điều khiển blink (LUÔN LUÔN)
+            // WFLW đã set blink = 0, MediaPipe override tuyệt đối
             if (mediaPipeEyeDataRef.current) {
-              const wflwBlink = { l: vrmRig.blink.l, r: vrmRig.blink.r };
               vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
               vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
               
-              // Debug log mỗi 3 giây
-              if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 3000) {
-                console.log('🔀 MERGE Eyes:', {
-                  WFLW: { l: wflwBlink.l.toFixed(2), r: wflwBlink.r.toFixed(2) },
-                  MediaPipe: { l: vrmRig.blink.l.toFixed(2), r: vrmRig.blink.r.toFixed(2) }
+              // Debug log mỗi 1 giây (tạm thời để debug)
+              if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 1000) {
+                console.log('🔵 [STAGE 1] MediaPipe → vrmRig.blink:', {
+                  'mediaPipe.blinkLeft': mediaPipeEyeDataRef.current.blinkLeft.toFixed(3),
+                  'mediaPipe.blinkRight': mediaPipeEyeDataRef.current.blinkRight.toFixed(3),
+                  '→ vrmRig.blink.l': vrmRig.blink.l.toFixed(3),
+                  '→ vrmRig.blink.r': vrmRig.blink.r.toFixed(3)
                 });
                 window._lastMergeLog = Date.now();
               }
+            } else {
+              // ⚠️ MediaPipe chưa có data
+              console.warn('⚠️ mediaPipeEyeDataRef.current is NULL - mắt sẽ giữ mở');
+              vrmRig.blink.l = 0;
+              vrmRig.blink.r = 0;
             }
             
             // ⚡ OPTIMIZATION: Throttle setRiggedFace (16ms = 60fps max)

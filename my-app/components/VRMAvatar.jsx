@@ -21,12 +21,7 @@ export const VRMAvatar = ({
   hideControls = false,
   disableFaceTracking = false,
   ...props 
-}) => {
-  console.log("🎭 VRMAvatar mounted/updated:", { 
-    avatar, 
-    disableFaceTracking,
-    hasExternalAnimation: !!externalAnimation 
-  });
+}) => {;
   
   // Support both local path and full URL
   // Check if path already starts with 'models/' or is a full URL
@@ -146,6 +141,32 @@ export const VRMAvatar = ({
     VRMUtils.removeUnnecessaryVertices(scene);
     VRMUtils.combineSkeletons(scene);
     VRMUtils.combineMorphs(vrm);
+    
+    // 🔍 DEBUG: List ALL available blink-related expression names
+    if (vrm.expressionManager) {
+      console.log('\n🔍 === VRM MODEL EXPRESSION DEBUG ===');
+      const allExpressions = Object.keys(vrm.expressionManager._expressionMap || {});
+      console.log('Total expressions:', allExpressions.length);
+      
+      // Filter blink-related
+      const blinkExpressions = allExpressions.filter(name => 
+        name.toLowerCase().includes('blink') || 
+        name.toLowerCase().includes('eye')
+      );
+      console.log('👁️ Blink/Eye expressions:', blinkExpressions);
+      
+      // Try to get current values
+      blinkExpressions.forEach(name => {
+        try {
+          const value = vrm.expressionManager.getValue(name);
+          console.log(`  ${name} = ${value}`);
+        } catch (e) {
+          console.log(`  ${name} = ERROR`);
+        }
+      });
+      console.log('=====================================\n');
+    }
+    
     const handBoneNames = [
       "leftShoulder", "leftUpperArm", "leftLowerArm", "leftHand",
       "leftThumbProximal", "leftThumbIntermediate", "leftThumbDistal",
@@ -474,7 +495,7 @@ export const VRMAvatar = ({
         from: debug.lastHasFaceTracking,
         to: hasFaceTracking
       });
-      console.warn('⚠️ JITTER CAUSE 1: Face tracking toggled (bool)', debug.lastHasFaceTracking, '→', hasFaceTracking);
+      //console.warn('⚠️ JITTER CAUSE 1: Face tracking toggled (bool)', debug.lastHasFaceTracking, '→', hasFaceTracking);
     }
     debug.lastHasFaceTracking = hasFaceTracking;
     
@@ -571,21 +592,23 @@ export const VRMAvatar = ({
         window._lastRawLog = Date.now();
       }
       
-      // 2. Convert WFLW rig → VRM blendshapes (skipEyes=true - MediaPipe sẽ xử lý eyes)
+      // 2. Convert WFLW rig → VRM blendshapes (KHÔNG có blink - solver bỏ qua)
       const blendShapes = wflwSolver.solveWFLWToVRMBlendShapes(riggedFace.current, { skipEyes: true });
       
-      // 2.5. ✅ OVERRIDE EYES với MediaPipe data (từ riggedFace.current.blink đã được merge)
+      // ✅ FORCE SET: Blink 100% từ MediaPipe (bypass solver hoàn toàn)
+      // Solver không tính Blink_L/R, chúng ta set trực tiếp từ riggedFace.blink
       if (riggedFace.current?.blink) {
-        const beforeOverride = { L: blendShapes.Blink_L, R: blendShapes.Blink_R };
         blendShapes.Blink_L = Math.max(0, Math.min(1, riggedFace.current.blink.l));
         blendShapes.Blink_R = Math.max(0, Math.min(1, riggedFace.current.blink.r));
         
-        // 🎯 DEBUG: Log mỗi 3s để verify MediaPipe đang override
-        if (!window._lastEyeOverrideLog || Date.now() - window._lastEyeOverrideLog > 3000) {
-          // console.log('\n👁️ === EYE CONTROL: MediaPipe Override ===');
-          // console.log(`Before (WFLW): L=${(beforeOverride.L || 0).toFixed(3)}, R=${(beforeOverride.R || 0).toFixed(3)}`);
-          // console.log(`After (MediaPipe): L=${blendShapes.Blink_L.toFixed(3)}, R=${blendShapes.Blink_R.toFixed(3)}`);
-          // console.log(`Source: riggedFace.blink = { l:${riggedFace.current.blink.l.toFixed(3)}, r:${riggedFace.current.blink.r.toFixed(3)} }`);
+        // 🎯 DEBUG: Log mỗi 1s (tạm thời để debug)
+        if (!window._lastEyeOverrideLog || Date.now() - window._lastEyeOverrideLog > 1000) {
+          console.log('🟢 [STAGE 2] riggedFace → blendShapes:', {
+            'riggedFace.blink.l': riggedFace.current.blink.l.toFixed(3),
+            'riggedFace.blink.r': riggedFace.current.blink.r.toFixed(3),
+            '→ blendShapes.Blink_L': blendShapes.Blink_L.toFixed(3),
+            '→ blendShapes.Blink_R': blendShapes.Blink_R.toFixed(3)
+          });
           window._lastEyeOverrideLog = Date.now();
         }
       }
