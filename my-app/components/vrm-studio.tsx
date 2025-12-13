@@ -21,6 +21,7 @@ import {
 import { Upload, Plus, CheckCircle, X, Trash2 } from "lucide-react"
 import { modelService } from "@/service/modelService" // Import model service
 import { AvatarSelector } from "@/components/avatar-selector" // Import AvatarSelector
+import { useModel } from "@/context/modelContext" // 🔄 Import ModelContext
 // Sửa: Đã xóa import tĩnh
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" 
 
@@ -101,6 +102,9 @@ async function extractThumbnail(file: File): Promise<string> {
 
 // ==== COMPONENT CHÍNH QUẢN LÝ STUDIO ====
 export function VRMStudio() {
+  // 🔄 Get ONLY setSelectedModel from context (don't subscribe to selectedModelUrl to avoid re-render)
+  const { setSelectedModel } = useModel();
+  
   // === Refs ===
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -475,6 +479,7 @@ export function VRMStudio() {
             </div>
           ) : (
             <>
+              {console.log('🎨 Canvas rendering with currentVrmUrl:', currentVrmUrl)}
               <Canvas
                 camera={{ position: [0, 1.5, 3], fov: 50 }}
                 gl={{
@@ -489,10 +494,12 @@ export function VRMStudio() {
                   <directionalLight position={[5, 5, 5]} intensity={1.5} />
                   <directionalLight position={[-5, 5, -5]} intensity={0.7} />
                   <VRMAvatar 
+                    key={`preview-${currentVrmUrl}`}
                     avatar={currentVrmUrl} 
                     externalAnimation={currentAnimation}
                     externalExpressions={expressions}
                     hideControls={true}
+                    disableFaceTracking={true}
                   />
                   <OrbitControls
                     enableZoom={true}
@@ -511,6 +518,15 @@ export function VRMStudio() {
                 modelUrl={currentVrmUrl || ""}
                 uploadDate={modelList.find(m => m.vrmUrl === currentVrmUrl)?.uploadDate}
                 fileSize={modelList.find(m => m.vrmUrl === currentVrmUrl)?.fileSize}
+                onApplyToVideoCall={() => {
+                  const currentModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
+                  const modelName = currentModel?.name || "Default Model";
+                  console.log('🎬 ========== APPLY TO VIDEO CALL CLICKED ==========');
+                  console.log('📺 Preview Model URL:', currentVrmUrl);
+                  console.log('📝 Preview Model Name:', modelName);
+                  console.log('==================================================');
+                  setSelectedModel(currentVrmUrl || '', modelName);
+                }}
               />
               
               {/* Animation Controls Overlay - Right */}
@@ -567,6 +583,10 @@ export function VRMStudio() {
           setTimeout(() => {
             setIsLoading(false);
           }, 2000);
+        }}
+        onApplyToVideoCall={(avatarUrl, modelName) => {
+          console.log('📹 Applying model to video call:', { avatarUrl, modelName });
+          setSelectedModel(avatarUrl, modelName);
         }}
         currentAvatar={currentVrmUrl || undefined}
       />

@@ -34,18 +34,9 @@ export interface VRMBlendShapes {
 export function solveWFLWToVRMBlendShapes(rigData: VRMFaceRig, options?: { skipEyes?: boolean }): VRMBlendShapes {
   const blendShapes: VRMBlendShapes = {}
   
-  // 1. BLINK - ✅ SKIP nếu skipEyes=true (MediaPipe sẽ xử lý)
-  if (!options?.skipEyes) {
-    blendShapes.Blink_L = Math.max(0, Math.min(1, rigData.blink.l))
-    blendShapes.Blink_R = Math.max(0, Math.min(1, rigData.blink.r))
-    
-    // 🎭 LOG BLENDSHAPE BLINK (mỗi 10s)
-    logBlendShapeBlink(blendShapes);
-  } else {
-    // MediaPipe điều khiển - giữ eyes ở trạng thái mở
-    blendShapes.Blink_L = 0;
-    blendShapes.Blink_R = 0;
-  }
+  // 1. BLINK - ❌ KHÔNG tính từ WFLW - MediaPipe sẽ xử lý 100%
+  // Không set Blink_L/R vào blendShapes, sẽ được force set trực tiếp từ MediaPipe data
+  // trong VRMAvatar.jsx (bypass solver hoàn toàn)
   
   // 2. EYEBROWS - Map từ brow height với threshold
   // Positive brow value = raised brows
@@ -128,13 +119,28 @@ export function applyBlendShapesToVRM(
   
   // ✅ CHỈ APPLY CÁC BLENDSHAPES CÓ TRONG DATA - KHÔNG RESET!
   // Giữ nguyên giá trị cũ của các blendshapes không có trong data mới
+  
+  // 🔍 DEBUG: Log blink values trước khi apply (tạm thời)
+  let blinkDebug: any = {};
+  
   Object.entries(blendShapes).forEach(([name, value]) => {
     if (value !== undefined) {
       const vrmName = VRM_BLENDSHAPE_MAP[name] || name.toLowerCase();
       
+      // Collect blink debug info
+      if (name === 'Blink_L' || name === 'Blink_R') {
+        blinkDebug[name] = { value, vrmName };
+      }
+      
       try {
         // VRM 1.0 uses expressionManager
         expressionManager.setValue(vrmName, value);
+        
+        // Log successful set for blink
+        if (name === 'Blink_L' || name === 'Blink_R') {
+          const readBack = expressionManager.getValue(vrmName);
+          blinkDebug[name].readBack = readBack;
+        }
       } catch (error) {
         // Fallback for VRM 0.x (uses blendShapeProxy)
         try {
@@ -145,6 +151,14 @@ export function applyBlendShapesToVRM(
       }
     }
   })
+  
+  // Log blink debug mỗi 1s
+  if (Object.keys(blinkDebug).length > 0) {
+    if (!window._lastBlinkApplyLog || Date.now() - window._lastBlinkApplyLog > 1000) {
+      console.log('🟡 [STAGE 3] applyBlendShapesToVRM:', blinkDebug);
+      window._lastBlinkApplyLog = Date.now();
+    }
+  }
 }
 
 // Debug helper - Log sau khi apply threshold (TẮT để tăng performance)

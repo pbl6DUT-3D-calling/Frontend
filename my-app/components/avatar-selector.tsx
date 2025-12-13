@@ -26,9 +26,10 @@ interface AvatarSelectorProps {
   onClose: () => void;
   onSelect: (avatarUrl: string) => void;
   currentAvatar?: string;
+  onApplyToVideoCall?: (avatarUrl: string, modelName: string) => void; // ✅ NEW: Apply to video call
 }
 
-export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: AvatarSelectorProps) {
+export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApplyToVideoCall }: AvatarSelectorProps) {
   const [models, setModels] = useState<ModelItem[]>([]);
   const [selectedModel, setSelectedModel] = useState<ModelItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -257,11 +258,24 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar }: Ava
                     </div>
                   </div>
                   
-                  <div className="p-4 bg-white/70 backdrop-blur-sm border-t-2 border-purple-200">
+                  <div className="p-4 bg-white/70 backdrop-blur-sm border-t-2 border-purple-200 space-y-3">
                     <p className="text-lg font-semibold text-purple-900 text-center">{selectedModel.name}</p>
-                    <p className="text-sm text-purple-600 text-center mt-1">
+                    <p className="text-sm text-purple-600 text-center">
                       Nhấn "Xác nhận" để sử dụng làm avatar
                     </p>
+                    
+                    {/* ✅ NEW: Apply to Video Call Button */}
+                    {onApplyToVideoCall && (
+                      <Button
+                        onClick={() => {
+                          onApplyToVideoCall(selectedModel.vrmUrl, selectedModel.name);
+                          onClose();
+                        }}
+                        className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-2 rounded-lg shadow-md transition-all"
+                      >
+                        📹 Apply to Video Call
+                      </Button>
+                    )}
                   </div>
                 </div>
               ) : selectedModel && show3DPreview ? (
