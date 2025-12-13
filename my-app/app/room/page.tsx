@@ -15,6 +15,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import VRMVideoPublisher from '@/components/video-call/VRMVideoPublisher';
 import PreviewMedia from '@/components/video-call/PreviewMedia';
+import { ModelProvider } from '@/context/modelContext';
+import { VRMProvider } from '@/context/vrmContext'
 
 export default function Page() {
   const params = useSearchParams();
@@ -199,24 +201,28 @@ export default function Page() {
   }
 
   return (
-    <LiveKitRoom
-      video={previewSettings.isCameraOn} 
-      audio={previewSettings.isMicOn}
-      token={token}
-      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      data-lk-theme="default"
-      style={{ height: '100vh' }}
-      onDisconnected={handleDisconnected}
-      connect={true}
-    >
-      <MyVideoConference />
-      <RoomAudioRenderer />
-      
-      <AvatarControlsAndPublisher 
-        is3DEnabled={is3DEnabled} 
-        setIs3DEnabled={setIs3DEnabled} 
-      />
-    </LiveKitRoom>
+    <ModelProvider>
+      <VRMProvider> {/* ⬅️ THÊM wrap VRMProvider */}
+        <LiveKitRoom
+          video={previewSettings.isCameraOn} 
+          audio={previewSettings.isMicOn}
+          token={token}
+          serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+          data-lk-theme="default"
+          style={{ height: '100vh' }}
+          onDisconnected={handleDisconnected}
+          connect={true}
+        >
+          <MyVideoConference />
+          <RoomAudioRenderer />
+          
+          <AvatarControlsAndPublisher 
+            is3DEnabled={is3DEnabled} 
+            setIs3DEnabled={setIs3DEnabled} 
+          />
+        </LiveKitRoom>
+      </VRMProvider> {/* ⬅️ ĐÓNG VRMProvider */}
+    </ModelProvider>
   );
 }
 

@@ -60,7 +60,6 @@ export const FACEMESH_CONFIG = {
   },
 } as const;
 
-export const VRM_MODEL_PATH = '/models/7667029464206216702.vrm';
 export const LIGHTING_CONFIG = {
   AMBIENT_COLOR: 0xffffff,
   AMBIENT_INTENSITY: 0.8,
