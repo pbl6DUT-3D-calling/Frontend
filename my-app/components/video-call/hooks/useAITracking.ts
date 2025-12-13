@@ -1,50 +1,72 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { AIServerClient, AIServerResult } from '../services/aiServerClient';
 import { animateVRMWithAI } from '../vrmRiggingAI';
+import { useMediaPipeEyes } from '@/hooks/useEyes'; // ⬅️ THÊM
 
 export function useAITracking(
   enabled: boolean,
   videoRef: React.RefObject<HTMLVideoElement>,
-  vrm: VRM | null,
-  clock: React.MutableRefObject<THREE.Clock>
+  currentVrm: VRM | null,
+  clockRef: React.MutableRefObject<THREE.Clock>
 ) {
   const [isConnected, setIsConnected] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const aiClientRef = useRef<AIServerClient | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef(0);
   
-  const isPendingRef = useRef(false);
-  const lastResultRef = useRef<AIServerResult | null>(null);
+  // ⬅️ THÊM: MediaPipe eye data ref
+  const mediaPipeEyeDataRef = useRef<{
+    blinkLeft: number;
+    blinkRight: number;
+  } | null>(null);
 
-  // Initialize AI Client
+  // ⬅️ THÊM: Initialize MediaPipe for eyes
+  const faceMeshRef = useMediaPipeEyes(
+    videoRef.current,
+    enabled,
+    (eyeData) => {
+      mediaPipeEyeDataRef.current = eyeData;
+      
+      // Debug log every 3 seconds
+      if (!window._lastAITrackingEyeLog || Date.now() - window._lastAITrackingEyeLog > 3000) {
+        console.log('👁️ [AI Tracking] MediaPipe Eyes:', {
+          blinkLeft: eyeData.blinkLeft.toFixed(3),
+          blinkRight: eyeData.blinkRight.toFixed(3),
+        });
+        window._lastAITrackingEyeLog = Date.now();
+      }
+    }
+  );
+
+  // Initialize AI Server connection
   useEffect(() => {
     if (!enabled) {
+      // Cleanup
       if (aiClientRef.current) {
         aiClientRef.current.disconnect();
         aiClientRef.current = null;
       }
       setIsConnected(false);
       setIsReady(false);
-      isPendingRef.current = false;
-      lastResultRef.current = null;
       return;
     }
 
     const wsUrl = process.env.NEXT_PUBLIC_AI_WS_URL || 'ws://localhost:8000/ws/face-tracking';
     console.log('🔌 Connecting to AI Server:', wsUrl);
 
-    const aiClient = new AIServerClient(
+    const client = new AIServerClient(
       wsUrl,
       () => {
+        console.log('✅ AI Server connected');
         setIsConnected(true);
         setIsReady(true);
-        console.log('✅ AI Tracking Ready');
       },
       () => {
+        console.log('🔌 AI Server disconnected');
         setIsConnected(false);
         setIsReady(false);
-        console.log('🔌 AI Tracking Disconnected');
       },
       (error) => {
         console.error('❌ AI Tracking Error:', error);
@@ -52,128 +74,101 @@ export function useAITracking(
       }
     );
 
-    aiClientRef.current = aiClient;
+    // ⬅️ THÊM: Override eye blink với MediaPipe data
+    client.onResult((result: AIServerResult) => {
+      if (!currentVrm || !result.found) return;
 
-    // ⬅️ FIX: Handle results ĐÚNG CÁCH
-    aiClient.onResult((result: AIServerResult) => {
-      // Reset pending NGAY KHI NHẬN ĐƯỢC RESULT
-      isPendingRef.current = false;
-
-      if (!result.found) {
-        console.log('⚠️ No face detected');
-        return;
+      // ⬅️ MERGE: MediaPipe eyes + AI Server (head + mouth)
+      const mergedResult = { ...result };
+      
+      // Override eye blink với MediaPipe
+      if (mediaPipeEyeDataRef.current) {
+        // Note: AI Server vẫn cung cấp landmarks, nhưng blink sẽ dùng MediaPipe
+        console.log('🔵 [useAITracking] Overriding eye blink with MediaPipe');
       }
 
-      // Lưu result mới nhất
-      lastResultRef.current = result;
-
-      // ⬅️ QUAN TRỌNG: Animate NGAY tại đây (không đợi requestAnimationFrame)
-      if (vrm && enabled) {
-        const deltaTime = clock.current.getDelta();
-        animateVRMWithAI(vrm, result, deltaTime);
-      }
+      const delta = clockRef.current.getDelta();
+      
+      // ⬅️ Pass MediaPipe eye data vào animateVRMWithAI
+      animateVRMWithAI(currentVrm, mergedResult, delta, mediaPipeEyeDataRef.current);
     });
 
-    aiClient.connect().catch((error) => {
+    aiClientRef.current = client;
+
+    client.connect().catch((error) => {
       console.error('Failed to connect to AI Server:', error);
+      setIsReady(false);
     });
-
-    // Canvas nhỏ hơn cho faster processing
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 120;
-    canvasRef.current = canvas;
 
     return () => {
       if (aiClientRef.current) {
         aiClientRef.current.disconnect();
         aiClientRef.current = null;
       }
-      setIsConnected(false);
-      setIsReady(false);
-      isPendingRef.current = false;
-      lastResultRef.current = null;
     };
-  }, [enabled, vrm, clock]);
-
-  // ⬅️ XÓA animation loop này đi (CONFLICT với onResult callback)
-  // useEffect(() => {
-  //   if (!enabled || !vrm || !lastResultRef.current) return;
-  //   ...animation loop...
-  // }, [enabled, vrm, clock]);
+  }, [enabled, currentVrm]);
 
   // Send frames to AI Server
   useEffect(() => {
-    if (!enabled || !isConnected || !videoRef.current || !canvasRef.current) {
+    if (!enabled || !isReady || !videoRef.current || !aiClientRef.current) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
       return;
     }
 
-    let isActive = true;
-    let frameInterval: NodeJS.Timeout;
-    let frameCount = 0;
+    const canvas = document.createElement('canvas');
+    canvas.width = 160; // Low resolution for speed
+    canvas.height = 120;
+    const ctx = canvas.getContext('2d', { willReadFrequently: false, alpha: false });
 
     const sendFrame = () => {
-      if (!isActive || !aiClientRef.current?.isConnected()) return;
-
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-
-      if (!video || !canvas || video.readyState < video.HAVE_CURRENT_DATA) {
+      if (!enabled || !videoRef.current || !aiClientRef.current?.isConnected()) {
         return;
       }
 
-      // ⬅️ FIX: Skip logic ĐÚNG
-      if (isPendingRef.current) {
-        // KHÔNG log mỗi frame skip (spam console)
+      const now = performance.now();
+      if (now - lastFrameTimeRef.current < 33) { // ~30 FPS
+        animationFrameRef.current = requestAnimationFrame(sendFrame);
         return;
       }
 
       try {
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob || !isActive) return;
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              if (!isActive || isPendingRef.current) return;
-
-              const base64 = (reader.result as string).split(',')[1];
-              
-              // Set pending TRƯỚC KHI gửi
-              isPendingRef.current = true;
-              aiClientRef.current?.sendFrame(base64);
-
-              frameCount++;
-              if (frameCount % 30 === 0) {
-                console.log(`📤 Sent ${frameCount} frames to AI Server`);
-              }
-            };
-            reader.readAsDataURL(blob);
-          },
-          'image/jpeg',
-          0.7
-        );
+        const video = videoRef.current;
+        if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
+          // Draw resized frame
+          ctx.drawImage(video, 0, 0, 160, 120);
+          
+          // ⬅️ THÊM: Call MediaPipe detection (passive - dùng chung video)
+          if (faceMeshRef?.detectForVideoFrame) {
+            const timestamp = performance.now();
+            faceMeshRef.detectForVideoFrame(video, timestamp);
+          }
+          
+          // Convert to base64
+          const base64Image = canvas.toDataURL('image/jpeg', 0.3).split(',')[1];
+          
+          // Send to AI Server
+          aiClientRef.current.sendFrame(base64Image);
+          lastFrameTimeRef.current = now;
+        }
       } catch (error) {
         console.error('Error sending frame:', error);
-        isPendingRef.current = false; // Reset on error
       }
+
+      animationFrameRef.current = requestAnimationFrame(sendFrame);
     };
 
-    // ⬅️ FIX: 25 FPS (balance giữa smooth và performance)
-    frameInterval = setInterval(sendFrame, 40); // 40ms = 25 FPS
+    sendFrame();
 
     return () => {
-      isActive = false;
-      if (frameInterval) {
-        clearInterval(frameInterval);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
     };
-  }, [enabled, isConnected, videoRef]);
+  }, [enabled, isReady, videoRef.current]);
 
   return {
     aiClient: aiClientRef.current,

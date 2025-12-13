@@ -2,6 +2,19 @@ import { VRM } from '@pixiv/three-vrm';
 import { Euler, Quaternion } from 'three';
 import { AIServerResult, AIServerLandmark } from './services/aiServerClient';
 
+declare global {
+  interface Window {
+    _lastBlinkLog?: number;
+  }
+}
+
+// ⬅️ THÊM: MediaPipe eye data type
+interface MediaPipeEyeData {
+  blinkLeft: number;
+  blinkRight: number;
+}
+
+
 // Lerp helper
 const lerp = (start: number, end: number, amount: number): number => {
   return start + (end - start) * amount;
@@ -12,7 +25,7 @@ const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(max, value));
 };
 
-// ⬅️ NEW: Smoothing filter để giảm jitter
+// Smoothing filter
 class SmoothingFilter {
   private history: number[] = [];
   private maxHistory = 5;
@@ -30,7 +43,7 @@ class SmoothingFilter {
   }
 }
 
-// ⬅️ Global smoothing filters
+// Global smoothing filters
 const pitchFilter = new SmoothingFilter();
 const yawFilter = new SmoothingFilter();
 const rollFilter = new SmoothingFilter();
@@ -46,6 +59,7 @@ function extractFacialFeatures(landmarks: AIServerLandmark[]) {
   const rightEye = landmarks.slice(68, 76);
   const mouth = landmarks.slice(76, 96);
 
+  // ⬅️ AI Server eye openness (fallback nếu không có MediaPipe)
   const leftEyeOpenness = calculateEyeOpenness(leftEye);
   const rightEyeOpenness = calculateEyeOpenness(rightEye);
   const mouthOpenness = calculateMouthOpenness(mouth);
@@ -95,10 +109,12 @@ function calculateMouthOpenness(mouthLandmarks: AIServerLandmark[]): number {
   return openness;
 }
 
+// ⬅️ SỬA: Thêm MediaPipe eye data parameter
 export const animateVRMWithAI = (
   vrm: VRM,
   result: AIServerResult,
-  delta: number = 0.016
+  delta: number = 0.016,
+  mediaPipeEyeData: MediaPipeEyeData | null = null // ⬅️ THÊM parameter
 ) => {
   if (!vrm || !result.found) return;
 
@@ -107,7 +123,7 @@ export const animateVRMWithAI = (
   const features = extractFacialFeatures(landmarks);
   if (!features) return;
 
-  rigFaceAI(vrm, pitch, yaw, roll, features, delta);
+  rigFaceAI(vrm, pitch, yaw, roll, features, delta, mediaPipeEyeData); // ⬅️ Pass MediaPipe data
 };
 
 interface FacialFeatures {
@@ -116,13 +132,15 @@ interface FacialFeatures {
   mouthOpenness: number;
 }
 
+// ⬅️ SỬA: Thêm MediaPipe parameter
 const rigFaceAI = (
   vrm: VRM,
   pitch: number,
   yaw: number,
   roll: number,
   features: FacialFeatures,
-  delta: number
+  delta: number,
+  mediaPipeEyeData: MediaPipeEyeData | null = null // ⬅️ THÊM
 ) => {
   if (!vrm?.expressionManager) return;
 
@@ -136,42 +154,57 @@ const rigFaceAI = (
   };
 
   // === HEAD ROTATION ===
-  // ⬅️ FIX 1: Clamp angles để tránh extreme values
-  const clampedPitch = clamp(pitch, -45, 45);   // Max ±45° (cúi/ngẩng)
-  const clampedYaw = clamp(yaw, -60, 60);       // Max ±60° (trái/phải)
-  const clampedRoll = clamp(roll, -30, 30);     // Max ±30° (nghiêng)
+  const clampedPitch = clamp(pitch, -45, 45);
+  const clampedYaw = clamp(yaw, -60, 60);
+  const clampedRoll = clamp(roll, -30, 30);
 
-  // ⬅️ FIX 2: Apply smoothing
   const smoothPitch = pitchFilter.smooth(clampedPitch);
   const smoothYaw = yawFilter.smooth(clampedYaw);
   const smoothRoll = rollFilter.smooth(clampedRoll);
 
-  // ⬅️ FIX 3: Convert to radians với sign ĐÚNG
-  const pitchRad = (-smoothPitch * Math.PI) / 180;  // Pitch: âm = ngẩng lên
-  const yawRad = (smoothYaw * Math.PI) / 180;       // Yaw: dương = quay trái
-  const rollRad = (smoothRoll * Math.PI) / 180;     // Roll: dương = nghiêng trái
+  const pitchRad = (-smoothPitch * Math.PI) / 180;
+  const yawRad = (smoothYaw * Math.PI) / 180;
+  const rollRad = (smoothRoll * Math.PI) / 180;
 
-  // ⬅️ FIX 4: Giảm dampener để KHÔNG bị over-rotate
   rigRotation(
     'neck',
     { x: pitchRad, y: yawRad, z: rollRad },
-    0.5,  // Giảm từ 0.7 xuống 0.5 (tránh gimbal lock)
-    lerpAmount * 1.2,  // Giảm từ 1.5 xuống 1.2
+    0.5,
+    lerpAmount * 1.2,
     vrm
   );
 
   // === EYES ===
-  const blinkThreshold = 0.5;
+  // ⬅️ PRIORITY: MediaPipe 100% điều khiển blink
+  if (mediaPipeEyeData) {
+    // ✅ Dùng MediaPipe (ưu tiên cao nhất)
+    lerpExpression('blinkLeft', mediaPipeEyeData.blinkLeft);
+    lerpExpression('blinkRight', mediaPipeEyeData.blinkRight);
+    
+    // Debug log
+    if (!window._lastBlinkLog || Date.now() - window._lastBlinkLog > 1000) {
+      console.log('👁️ [vrmRiggingAI] Using MediaPipe blink:', {
+        blinkLeft: mediaPipeEyeData.blinkLeft.toFixed(3),
+        blinkRight: mediaPipeEyeData.blinkRight.toFixed(3),
+      });
+      window._lastBlinkLog = Date.now();
+    }
+  } else {
+    // ⬇️ Fallback: Dùng AI Server eye openness
+    const blinkThreshold = 0.5;
 
-  const leftBlink = features.leftEyeOpenness < blinkThreshold 
-    ? 1 - features.leftEyeOpenness / blinkThreshold 
-    : 0;
-  const rightBlink = features.rightEyeOpenness < blinkThreshold 
-    ? 1 - features.rightEyeOpenness / blinkThreshold 
-    : 0;
+    const leftBlink = features.leftEyeOpenness < blinkThreshold 
+      ? 1 - features.leftEyeOpenness / blinkThreshold 
+      : 0;
+    const rightBlink = features.rightEyeOpenness < blinkThreshold 
+      ? 1 - features.rightEyeOpenness / blinkThreshold 
+      : 0;
 
-  lerpExpression('blinkLeft', leftBlink);
-  lerpExpression('blinkRight', rightBlink);
+    lerpExpression('blinkLeft', leftBlink);
+    lerpExpression('blinkRight', rightBlink);
+    
+    console.warn('⚠️ Using AI Server blink (MediaPipe not available)');
+  }
 
   // === MOUTH ===
   const mouthOpen = features.mouthOpenness;
@@ -207,12 +240,11 @@ export const rigRotation = (
   const bone = vrm.humanoid?.getNormalizedBoneNode(name as any);
   if (!bone) return;
 
-  // ⬅️ FIX 5: Dùng YXZ order để tránh gimbal lock
   const targetEuler = new Euler(
     rotation.x * dampener,
     rotation.y * dampener,
     rotation.z * dampener,
-    'YXZ'  // ⬅️ QUAN TRỌNG: YXZ order (yaw → pitch → roll)
+    'YXZ'
   );
 
   const targetQuat = new Quaternion().setFromEuler(targetEuler);

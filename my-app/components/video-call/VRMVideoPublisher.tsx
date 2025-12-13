@@ -15,6 +15,26 @@ import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { adjustCameraForVRM } from './utils/threeSetup';
 
+
+const getVideoCallModelPath = (url: string): string => {
+  // Nếu là URL đầy đủ (http/https/blob) → giữ nguyên
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+    return url;
+  }
+  
+  // Loại bỏ / đầu nếu có
+  const cleanPath = url.startsWith('/') ? url.slice(1) : url;
+  
+  // Nếu đã có "models/" → giữ nguyên
+  if (cleanPath.startsWith('models/')) {
+    return `/${cleanPath}`;
+  }
+  
+  // Nếu chưa có "models/" → thêm vào
+  return `/models/${cleanPath}`;
+};
+
+
 const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
   const output2DCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,7 +63,12 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
       return;
     }
 
-    console.log('🔄 Loading VRM from selectedModelUrl:', selectedModelUrl);
+    const videoCallPath = getVideoCallModelPath(selectedModelUrl);
+
+    console.log('🔄 Loading VRM for video call:', {
+      modelContext: selectedModelUrl,
+      videoCallPath: videoCallPath
+    });
     setIsLoadingVRM(true);
 
     const loader = new GLTFLoader();
@@ -51,7 +76,7 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
     loader.register((parser) => new VRMLoaderPlugin(parser));
 
     loader.load(
-      selectedModelUrl,
+      videoCallPath,
       (gltf) => {
         if (!scene || !camera) {
           console.warn('Scene or camera is null during VRM load callback');
