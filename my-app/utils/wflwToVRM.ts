@@ -232,11 +232,11 @@ export function wflwToVRMRig(
   // 🎯 OFFSET CORRECTION: Server có bias khi mặt thẳng
   // Điều chỉnh giá trị này nếu model vẫn cúi/ngẩng/xoay khi bạn giữ mặt thẳng
   const PITCH_OFFSET = 10;  // Trừ đi pitch bias (gật đầu)
-  const YAW_OFFSET = 5;    // Trừ đi yaw bias (model xoay trái → cần offset âm)
+  const YAW_OFFSET = 14;    // Trừ đi yaw bias (model xoay trái → cần offset âm)
   const ROLL_OFFSET = 0;    // Không cần offset cho roll
   
   const headX = ((pitch - PITCH_OFFSET) * PITCH_MULTIPLIER * Math.PI) / 180;
-  const headY = ((yaw - YAW_OFFSET) * YAW_MULTIPLIER * Math.PI) / 180;
+  const headY = (-(yaw - YAW_OFFSET) * YAW_MULTIPLIER * Math.PI) / 180;
   const headZ = ((roll - ROLL_OFFSET) * ROLL_MULTIPLIER * Math.PI) / 180;
 
   // Face dimensions for width/height

@@ -1,88 +1,98 @@
 ﻿"use client";
 
 import {
- Avatar,
- AvatarFallback,
- AvatarImage,
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
 } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// 1. IMPORT THÊM isLoading
 import { useAuth } from "@/context/authContext";
 import { LogOut, Settings, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function UserNav() {
-  // 2. LẤY isLoading TỪ CONTEXT
   const { user, isLoggedIn, logout, isLoading } = useAuth();
-  const router = useRouter();  // 3. XỬ LÝ TRẠNG THÁI LOADING BAN ĐẦU
-  // (Hiển thị tạm thời hoặc không hiển thị gì cả)
+  const router = useRouter();
+
+  // Loading state
   if (isLoading) {
-    return <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>; // Ví dụ placeholder
-    // Hoặc return null;
+    return <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>;
   }
 
-  // 4. XỬ LÝ KHI CHƯA ĐĂNG NHẬP (Giữ nguyên)
-  if (!isLoggedIn || !user) {
-    return (
-      <Button asChild variant="ghost">
-        <Link href="/login">Đăng nhập</Link>
-      </Button>
-    );
-  }
+  // Chưa đăng nhập
+  if (!isLoggedIn || !user) {
+    return (
+      <Button asChild variant="ghost">
+        <Link href="/login">Đăng nhập</Link>
+      </Button>
+    );
+  }
 
-  // 5. TẠO BIẾN FALLBACK AN TOÀN
-  // Kiểm tra user.username trước khi gọi charAt
+  // Fallback avatar
   const fallbackInitial = user.username
-                          ? user.username.charAt(0).toUpperCase()
-                          : "?"; // Ký tự mặc định nếu không có username
+    ? user.username.charAt(0).toUpperCase()
+    : "?";
 
-  return (
-    <DropdownMenu>
+  return (
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user.avatar || undefined} alt={user.username || "User"} />
+            <AvatarImage src={user.avatar || ""} alt={user.username || "User"} />
             <AvatarFallback>{fallbackInitial}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            {/* Thêm kiểm tra cho fullName và email */}
-            <p className="text-sm font-medium leading-none">{user.fullName || "User"}</p>
-            <p className="text-xs leading-none text-muted-foreground">{user.email || ""}</p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
-            <User className="mr-2 h-4 w-4" />
+
+      {/* ForceMount đôi khi gây lỗi layout nếu không cần thiết thì nên bỏ, nhưng tôi giữ lại theo ý bạn */}
+      <DropdownMenuContent className="w-72" align="end" forceMount>
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex items-center gap-3">
+            {/* Avatar nhỏ bên trong menu */}
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={user.avatar || ""} alt={user.username || "User"} />
+              <AvatarFallback>{fallbackInitial}</AvatarFallback>
+            </Avatar>
+
+            {/* Phần thông tin user */}
+            <div className="flex flex-col space-y-1">
+              <p className="text-sm font-medium leading-none m-0">{user.fullName || "User"}</p>
+              <p className="text-xs leading-none text-muted-foreground m-0 truncate">{user.email || ""}</p>
+            </div>
+          </div>
+        </DropdownMenuLabel>
+        
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuGroup>
+          {/* Thêm flex, items-center và gap-2 thay vì mr-2 để căn chỉnh tốt hơn */}
+          <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer flex items-center gap-2">
+            <User className="h-4 w-4" />
             <span>Thông tin cá nhân</span>
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Cài đặt</span>
-          </DropdownMenuItem>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout}
-        className="cursor-pointer hover:bg-red-600 hover:text-white focus:bg-red-600 focus:text-white transition-colors"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Đăng xuất</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+        
+        <DropdownMenuSeparator />
+        
+        {/* Nút đăng xuất: Thêm w-full và justify-start để đảm bảo không bị co cụm */}
+        <DropdownMenuItem 
+          onClick={logout}
+          className="cursor-pointer flex items-center gap-2 w-full justify-start text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-100 focus:bg-red-100 transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Đăng xuất</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

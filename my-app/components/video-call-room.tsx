@@ -238,7 +238,8 @@ export function VideoCallRoom() {
 
         // 2. Connect to WebSocket
         console.log("🔌 Connecting to WebSocket server...")
-        const ws = new WebSocket("ws://localhost:8000/ws/face-tracking")
+        // const ws = new WebSocket("ws://localhost:8000/ws/face-tracking")
+        const ws = new WebSocket("wss://emile-nonorthodox-loan.ngrok-free.dev/ws/face-tracking");
         wsRef.current = ws
 
         ws.onopen = () => {

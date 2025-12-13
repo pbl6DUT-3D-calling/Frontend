@@ -201,6 +201,7 @@ export const VRMAvatar = ({
     (state) => state.setResultsCallback
   );
   const videoElement = useVideoRecognition((state) => state.videoElement);
+  const isCameraActive = !!videoElement; // Track camera state
   const riggedFace = useRef();
   const riggedPose = useRef();
   const riggedLeftHand = useRef();
@@ -503,10 +504,10 @@ export const VRMAvatar = ({
       const neckBone = userData.vrm.humanoid.getNormalizedBoneNode("neck");
       
       if (hasFaceTracking) {
-        // ✅ Cho phép mixer chạy (animation đã loại bỏ neck/head tracks)
-        mixer.update(delta);
+        // ✅ FIX: TẮT MIXER khi có face tracking để tránh conflict
+        // mixer.update(delta);  // ❌ COMMENT OUT - Animation idle sẽ PAUSE
         
-        // ✅ Apply head rotation từ face tracking (không bị animation override vì đã remove tracks)
+        // ✅ Apply head rotation từ face tracking (KHÔNG bị animation override)
         if (riggedFaceFromContext?.head && neckBone) {
           tmpEuler.set(
             riggedFaceFromContext.head.x * 1.0,
@@ -550,7 +551,18 @@ export const VRMAvatar = ({
           }
         }
         
-        mixer.update(delta);
+        // ✅ LOGIC: CHỈ chạy idle animation khi:
+        // - Camera TẮT (isCameraActive = false) HOẶC
+        // - autoPlayIdle = true (force idle luôn chạy)
+        // 
+        // ❌ KHÔNG chạy animation khi:
+        // - Camera BẬT (isCameraActive = true) NHƯNG không detect mặt
+        //   → Model đứng yên hoàn toàn (freezed idle pose)
+        if (!isCameraActive || autoPlayIdle) {
+          mixer.update(delta);
+        }
+        // else: Camera BẬT nhưng không có mặt → không update mixer → model đứng yên
+        
         debug.lastNeckQuat = null;
       }
     } else if (mixer) {
