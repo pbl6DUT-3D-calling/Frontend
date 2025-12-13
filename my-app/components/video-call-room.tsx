@@ -20,8 +20,18 @@ import { Experience } from "./Experience"
 import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
+import { useModel } from "@/context/modelContext"
 
 export function VideoCallRoom() {
+  const { selectedModelUrl } = useModel() // 🔄 Get selected model from context
+  
+  // 🔍 DEBUG: Log model URL changes
+  useEffect(() => {
+    console.log('🎥 ========== VIDEO CALL ROOM MODEL UPDATE ==========');
+    console.log('🎯 Video Call Room Model URL:', selectedModelUrl);
+    console.log('===================================================');
+  }, [selectedModelUrl]);
+  
   const [isVideoOn, setIsVideoOn] = useState(false) // Camera tắt mặc định
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isInCall, setIsInCall] = useState(true)
@@ -228,7 +238,8 @@ export function VideoCallRoom() {
 
         // 2. Connect to WebSocket
         console.log("🔌 Connecting to WebSocket server...")
-        const ws = new WebSocket("ws://localhost:8000/ws/face-tracking")
+        // const ws = new WebSocket("ws://localhost:8000/ws/face-tracking")
+        const ws = new WebSocket("wss://emile-nonorthodox-loan.ngrok-free.dev/ws/face-tracking");
         wsRef.current = ws
 
         ws.onopen = () => {
@@ -274,20 +285,27 @@ export function VideoCallRoom() {
             // Convert WFLW to VRM format - Dùng resolution mới
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
-            // 🔀 MERGE: Override blink từ MediaPipe (nếu có)
+            // ✅ OVERRIDE: MediaPipe 100% điều khiển blink (LUÔN LUÔN)
+            // WFLW đã set blink = 0, MediaPipe override tuyệt đối
             if (mediaPipeEyeDataRef.current) {
-              const wflwBlink = { l: vrmRig.blink.l, r: vrmRig.blink.r };
               vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
               vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
               
-              // Debug log mỗi 3 giây
-              if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 3000) {
-                console.log('🔀 MERGE Eyes:', {
-                  WFLW: { l: wflwBlink.l.toFixed(2), r: wflwBlink.r.toFixed(2) },
-                  MediaPipe: { l: vrmRig.blink.l.toFixed(2), r: vrmRig.blink.r.toFixed(2) }
+              // Debug log mỗi 1 giây (tạm thời để debug)
+              if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 1000) {
+                console.log('🔵 [STAGE 1] MediaPipe → vrmRig.blink:', {
+                  'mediaPipe.blinkLeft': mediaPipeEyeDataRef.current.blinkLeft.toFixed(3),
+                  'mediaPipe.blinkRight': mediaPipeEyeDataRef.current.blinkRight.toFixed(3),
+                  '→ vrmRig.blink.l': vrmRig.blink.l.toFixed(3),
+                  '→ vrmRig.blink.r': vrmRig.blink.r.toFixed(3)
                 });
                 window._lastMergeLog = Date.now();
               }
+            } else {
+              // ⚠️ MediaPipe chưa có data
+              console.warn('⚠️ mediaPipeEyeDataRef.current is NULL - mắt sẽ giữ mở');
+              vrmRig.blink.l = 0;
+              vrmRig.blink.r = 0;
             }
             
             // ⚡ OPTIMIZATION: Throttle setRiggedFace (16ms = 60fps max)
@@ -452,7 +470,15 @@ export function VideoCallRoom() {
 
   const toggleVideo = () => {
     console.log("Toggle Video - Bật/tắt camera")
-    setIsVideoOn(!isVideoOn)
+    const newState = !isVideoOn
+    
+    // Nếu tắt camera, reset riggedFace về null để trở về idle
+    if (!newState) {
+      console.log("📹 Camera turning OFF - Resetting to idle pose")
+      setRiggedFace(null)
+    }
+    
+    setIsVideoOn(newState)
   }
   
   const toggleAudio = () => {
@@ -487,7 +513,7 @@ export function VideoCallRoom() {
                 <color attach="background" args={["#333"]} />
                 <fog attach="fog" args={["#333", 10, 20]} />
                 <Suspense fallback={null}>
-                  <Experience />
+                  <Experience key={`videocall-${selectedModelUrl}`} modelUrl={selectedModelUrl} />
                 </Suspense>
               </Canvas>
             )}

@@ -185,41 +185,59 @@ export function wflwToVRMRig(
   const THRESHOLD_MOUTH_OPEN = 0.03;   // Cần vượt 0.03 mới coi là há miệng
   const THRESHOLD_SMILE = 0.04;        // Cần vượt 0.04 mới coi là cười
   
-  // Calculate aspect ratio
-  const mouthAspect = mouthWidth > 0 ? mouthHeight / mouthWidth : 0;
+  // 🎯 OFFSET CORRECTION: Server có bias khi mím miệng
+  const MOUTH_HEIGHT_OFFSET = 0.03;     // Trừ đi bias height (điều chỉnh giá trị này)
+  const MOUTH_HEIGHT_MULTIPLIER = 0.8;  // Giảm sensitivity để không há quá rộng
   
-  // A (aa) - open mouth vertically
-  const heightDelta = mouthHeight - BASELINE_MOUTH_HEIGHT;
+  // Adjust mouth height với offset và multiplier
+  const adjustedMouthHeight = Math.max(0, mouthHeight - MOUTH_HEIGHT_OFFSET);
+  
+  // Calculate aspect ratio (dùng adjusted height)
+  const mouthAspect = mouthWidth > 0 ? adjustedMouthHeight / mouthWidth : 0;
+  
+  // A (aa) - open mouth vertically với correction
+  const heightDelta = (adjustedMouthHeight - BASELINE_MOUTH_HEIGHT) * MOUTH_HEIGHT_MULTIPLIER;
   const shapeA = heightDelta > THRESHOLD_MOUTH_OPEN
     ? Math.max(0, Math.min(1, (heightDelta - THRESHOLD_MOUTH_OPEN) / 0.08))
     : 0;
   
-  // E (ee) - wide smile
+  // E (ee) - wide smile (giữ nguyên)
   const widthDelta = mouthWidth - BASELINE_MOUTH_WIDTH;
   const shapeE = widthDelta > THRESHOLD_SMILE
     ? Math.max(0, Math.min(1, (widthDelta - THRESHOLD_SMILE) / 0.10))
     : 0;
   
-  // O (oh) - round mouth
+  // O (oh) - round mouth (dùng heightDelta đã adjusted)
   const shapeO = mouthAspect > 0.4 && heightDelta > THRESHOLD_MOUTH_OPEN
     ? Math.max(0, Math.min(1, (mouthAspect - 0.4) * 2 * (heightDelta / 0.08)))
     : 0;
   
-  // I - slight opening
+  // I - slight opening (dùng heightDelta đã adjusted)
   const shapeI = heightDelta > THRESHOLD_MOUTH_OPEN && heightDelta < 0.06
     ? Math.max(0, Math.min(1, (heightDelta - THRESHOLD_MOUTH_OPEN) / 0.03))
     : 0;
   
-  // U - lips protruded
+  // U - lips protruded (dùng heightDelta đã adjusted)
   const shapeU = mouthAspect > 0.5 && heightDelta > 0.02 && heightDelta < 0.07
     ? Math.max(0, Math.min(1, (mouthAspect - 0.5) * 3))
     : 0;
 
   // === 5. HEAD ROTATION ===
   // Convert degrees to radians (VRM uses radians)
-  const headX = (pitch * Math.PI) / 180;
-  const headY = (yaw * Math.PI) / 180;
-  const headZ = (roll * Math.PI) / 180;
+  // 🔧 AMPLIFY: Tăng sensitivity cho Pitch và Yaw
+  const PITCH_MULTIPLIER = -1.5;  // ⚠️ ĐẢO DẤU: Server pitch ngược với VRM
+  const YAW_MULTIPLIER = 1.5;     // Xoay mặt nhạy hơn 1.5x
+  const ROLL_MULTIPLIER = 1.0;    // Giữ nguyên (đã hoạt động tốt)
+  
+  // 🎯 OFFSET CORRECTION: Server có bias khi mặt thẳng
+  // Điều chỉnh giá trị này nếu model vẫn cúi/ngẩng/xoay khi bạn giữ mặt thẳng
+  const PITCH_OFFSET = 10;  // Trừ đi pitch bias (gật đầu)
+  const YAW_OFFSET = 14;    // Trừ đi yaw bias (model xoay trái → cần offset âm)
+  const ROLL_OFFSET = 0;    // Không cần offset cho roll
+  
+  const headX = ((pitch - PITCH_OFFSET) * PITCH_MULTIPLIER * Math.PI) / 180;
+  const headY = (-(yaw - YAW_OFFSET) * YAW_MULTIPLIER * Math.PI) / 180;
+  const headZ = ((roll - ROLL_OFFSET) * ROLL_MULTIPLIER * Math.PI) / 180;
 
   // Face dimensions for width/height
   const faceLeft = normalize(landmarks[0]); // Left jaw
@@ -244,8 +262,8 @@ export function wflwToVRMRig(
       y: pupilY,
     },
     blink: {
-      l: blinkLeft,
-      r: blinkRight,
+      l: 0,  // ❌ WFLW KHÔNG điều khiển blink - MediaPipe sẽ xử lý 100%
+      r: 0,  // ❌ WFLW KHÔNG điều khiển blink - MediaPipe sẽ xử lý 100%
     },
     brow: browValue,
     mouth: {

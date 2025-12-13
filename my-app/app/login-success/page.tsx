@@ -8,7 +8,7 @@ function GoogleCallbackComponent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { handleGoogleCallback } = useAuth();
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   // === THÊM STATE NÀY ===
   const [isProcessing, setIsProcessing] = useState(true); // Bắt đầu là đang xử lý
 

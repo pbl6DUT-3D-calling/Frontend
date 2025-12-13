@@ -67,90 +67,34 @@ export function adjustCameraForVRM(
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   
-  console.log('📦 Model bounding box:', {
-    min: { x: box.min.x.toFixed(2), y: box.min.y.toFixed(2), z: box.min.z.toFixed(2) },
-    max: { x: box.max.x.toFixed(2), y: box.max.y.toFixed(2), z: box.max.z.toFixed(2) },
-    size: { x: size.x.toFixed(2), y: size.y.toFixed(2), z: size.z.toFixed(2) },
-    center: { x: center.x.toFixed(2), y: center.y.toFixed(2), z: center.z.toFixed(2) }
-  });
+  // Lấy aspect ratio thực tế từ camera
+  const aspect = camera.aspect;
   
-  // ⬅️ Tính vùng visible theo TỈ LỆ %
-  const fromHeight = VRM_POSITIONING.VISIBLE_FROM_HEIGHT;
-  const toHeight = VRM_POSITIONING.VISIBLE_TO_HEIGHT;
+  // Tính toán khoảng cách camera dựa trên cả chiều rộng và chiều cao
+  const fov = camera.fov * (Math.PI / 180);
+  const fovH = 2 * Math.atan(Math.tan(fov / 2) * aspect); // Horizontal FOV
   
-  const bottomY = box.min.y + (size.y * fromHeight);
-  const topY = box.min.y + (size.y * toHeight);
-  const visibleHeight = topY - bottomY;
-  const visibleCenterY = (bottomY + topY) / 2;
+  // Tính khoảng cách cần thiết để fit model theo cả 2 chiều
+  const cameraZVertical = Math.abs(size.y / 2 / Math.tan(fov / 2));
+  const cameraZHorizontal = Math.abs(size.x / 2 / Math.tan(fovH / 2));
   
-  console.log('📏 Visible region (proportional):', {
-    fromPercent: `${(fromHeight * 100).toFixed(0)}%`,
-    toPercent: `${(toHeight * 100).toFixed(0)}%`,
-    bottomY: bottomY.toFixed(2),
-    topY: topY.toFixed(2),
-    visibleHeight: visibleHeight.toFixed(2),
-    centerY: visibleCenterY.toFixed(2)
-  });
+  // Chọn khoảng cách lớn hơn để model vừa khung hình
+  let cameraZ = Math.max(cameraZVertical, cameraZHorizontal);
   
-  // ⬅️ Tính khoảng cách camera theo TỈ LỆ
-  const fovRad = (camera.fov * Math.PI) / 180;
-  const paddingFactor = 1 + VRM_POSITIONING.VERTICAL_PADDING;
+  // Thêm padding
+  cameraZ *= 0.9;
   
-  let distance = (visibleHeight * paddingFactor) / (2 * Math.tan(fovRad / 2));
+  // Đặt camera nhìn vào trung tâm model (đặc biệt là vùng đầu)
+  const headHeight = center.y + size.y * 0.35;
+  const { x: offsetX, y: offsetY, z_multiplier } = CAMERA_CONFIG.OFFSET;
   
-  // Zoom in factor
-  distance = distance * 0.75;
-  
-  // ⬅️ Tính horizontal offset theo TỈ LỆ % (nếu model lệch)
-  const horizontalOffset = size.x * VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT;
-  
-  console.log('📐 Camera calculation (proportional):', {
-    fov: camera.fov,
-    visibleHeight: visibleHeight.toFixed(2),
-    verticalPadding: `${(VRM_POSITIONING.VERTICAL_PADDING * 100).toFixed(0)}%`,
-    baseDistance: (distance / 0.75).toFixed(2),
-    zoomFactor: '0.75',
-    finalDistance: distance.toFixed(2),
-    horizontalOffsetPercent: `${(VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT * 100).toFixed(0)}%`,
-    horizontalOffsetValue: horizontalOffset.toFixed(3)
-  });
-  
-  // ⬅️ Đặt camera với horizontal offset (nếu cần)
+  // Đặt camera position - chỉ dùng offset để fine-tune, không ảnh hưởng centering
   camera.position.set(
-    horizontalOffset,  // X offset theo tỉ lệ %
-    visibleCenterY,    // Y = center vùng visible
-    distance           // Z = khoảng cách tính toán
+    center.x ,  
+    headHeight , 
+    cameraZ * z_multiplier
   );
   
-  // ⬅️ Look at cũng theo tỉ lệ
-  camera.lookAt(horizontalOffset, visibleCenterY, 0);
-  
-  console.log('📷 Final camera (proportional):', {
-    position: {
-      x: camera.position.x.toFixed(2),
-      y: camera.position.y.toFixed(2),
-      z: camera.position.z.toFixed(2)
-    },
-    lookAt: {
-      x: horizontalOffset.toFixed(2),
-      y: visibleCenterY.toFixed(2),
-      z: 0
-    },
-    fov: camera.fov
-  });
-}
-
-export function handleCameraResize(
-  camera: THREE.PerspectiveCamera,
-  renderer: THREE.WebGLRenderer,
-  canvas: HTMLCanvasElement
-): void {
-  const config = getResponsiveCanvasConfig();
-  
-  camera.aspect = config.ASPECT_RATIO;
-  camera.updateProjectionMatrix();
-  
-  renderer.setSize(config.WIDTH, config.HEIGHT);
-  canvas.width = config.WIDTH;
-  canvas.height = config.HEIGHT;
+  // LookAt vào center của model (vùng đầu)
+  camera.lookAt(center.x + offsetX, headHeight -0.1 + offsetY , 0);
 }

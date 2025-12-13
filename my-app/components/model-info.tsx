@@ -1,13 +1,15 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Info, Calendar, HardDrive, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Info, Calendar, HardDrive, Tag, Video } from "lucide-react";
 
 interface ModelInfoProps {
   modelName: string;
   modelUrl: string;
   uploadDate?: string;
   fileSize?: number;
+  onApplyToVideoCall?: () => void;
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -16,7 +18,7 @@ const formatFileSize = (bytes: number): string => {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 };
 
-export function ModelInfo({ modelName, modelUrl, uploadDate, fileSize }: ModelInfoProps) {
+export function ModelInfo({ modelName, modelUrl, uploadDate, fileSize, onApplyToVideoCall }: ModelInfoProps) {
   // Sử dụng fileSize từ API luôn, không cần fetch
   const formattedSize = fileSize ? formatFileSize(fileSize) : 'N/A';
 
@@ -71,6 +73,20 @@ export function ModelInfo({ modelName, modelUrl, uploadDate, fileSize }: ModelIn
             </p>
           </div>
         </div>
+
+        {/* Apply to Video Call Button */}
+        {onApplyToVideoCall && (
+          <div className="pt-2 mt-2 border-t border-purple-100">
+            <Button
+              onClick={onApplyToVideoCall}
+              className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-200 text-sm py-2"
+              size="sm"
+            >
+              <Video className="w-4 h-4 mr-2" />
+              Apply to Video Call
+            </Button>
+          </div>
+        )}
 
         {/* Decorative bottom */}
         <div className="pt-2 mt-2 border-t border-purple-100">
