@@ -33,14 +33,14 @@ export default function HomePage() {
         <VideoCallRoom />
       </SectionWrapper>
 
-      {/* Model Gallery Section */}
+      {/* Model Gallery Section
       <SectionWrapper 
         id="model-gallery"
         title="Model Gallery"
         description="Khám phá bộ sưu tập các model 3D và avatar đa dạng"
       >
         <ModelGallery />
-      </SectionWrapper>
+      </SectionWrapper> */}
 
       {/* Template cho sections mới - uncomment và sửa để thêm sections mới */}
       {/* 

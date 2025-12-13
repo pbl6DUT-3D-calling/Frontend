@@ -21,7 +21,9 @@ export function Navigation() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground"
+            onClick={() => router.push('/rooms')}
+            >
               <Users className="w-4 h-4 mr-2" />
               Rooms
             </Button>

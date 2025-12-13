@@ -44,7 +44,7 @@ export default function Page() {
       return null;
     } catch (e) {
       console.error('Error fetching token:', e);
-      return null;
+      throw e;
     }
   }, []);
 
