@@ -45,16 +45,79 @@ export function useVRMLoader(
           obj.frustumCulled = false;
         });
 
+        // Quay 180° để model face camera
         vrm.scene.rotation.y = Math.PI;
-        vrm.scene.position.set(0, 0, 0);
+        
+        // ⬅️ THÊM: Set pose thả lỏng (không T-pose)
+        if (vrm.humanoid) {
+          try {
+            // Hạ tay xuống tự nhiên
+            const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+            const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+            
+            if (leftUpperArm) {
+              leftUpperArm.rotation.z = 1; // Hạ tay trái
+              console.log('✋ Left arm relaxed');
+            }
+            if (rightUpperArm) {
+              rightUpperArm.rotation.z = -1; // Hạ tay phải
+              console.log('✋ Right arm relaxed');
+            }
+            if (leftLowerArm) {
+              leftLowerArm.rotation.z = -0.2; // Cong khuỷu trái
+            }
+            if (rightLowerArm) {
+              rightLowerArm.rotation.z = 0.2; // Cong khuỷu phải
+            }
+
+            console.log('💪 Pose set to relaxed (non T-pose)');
+          } catch (error) {
+            console.warn('Could not set relaxed pose:', error);
+          }
+        }
+        
+        // Force update transform sau rotation và pose
+        vrm.scene.updateMatrixWorld(true);
+        
+        // Tính bounding box SAU rotation
+        const box = new THREE.Box3().setFromObject(vrm.scene);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        
+        // CENTER THEO TỈ LỆ %
+        const offsetX = -center.x;
+        const offsetZ = -center.z;
+        
+        vrm.scene.position.set(offsetX, 0, offsetZ);
+        
+        console.log('📍 Model centered (proportional):', {
+          rotation: `${(vrm.scene.rotation.y * 180 / Math.PI).toFixed(0)}°`,
+          boundingBox: {
+            size: { x: size.x.toFixed(3), y: size.y.toFixed(3), z: size.z.toFixed(3) },
+            center: { x: center.x.toFixed(3), y: center.y.toFixed(3), z: center.z.toFixed(3) }
+          },
+          offset: {
+            x: offsetX.toFixed(3),
+            z: offsetZ.toFixed(3)
+          },
+          finalPosition: {
+            x: vrm.scene.position.x.toFixed(3),
+            y: vrm.scene.position.y.toFixed(3),
+            z: vrm.scene.position.z.toFixed(3)
+          }
+        });
 
         vrmRef.current = vrm;
         scene.add(vrm.scene);
 
-        adjustCameraForVRM(camera, vrm.scene);
+        setTimeout(() => {
+          adjustCameraForVRM(camera, vrm.scene);
+          setIsLoading(false);
+        }, 100);
 
         loadingRef.current = false;
-        setIsLoading(false);
       },
       undefined,
       (error) => {

@@ -504,10 +504,10 @@ export const VRMAvatar = ({
       const neckBone = userData.vrm.humanoid.getNormalizedBoneNode("neck");
       
       if (hasFaceTracking) {
-        // ✅ FIX: TẮT MIXER khi có face tracking để tránh conflict
-        // mixer.update(delta);  // ❌ COMMENT OUT - Animation idle sẽ PAUSE
+        // ✅ Cho phép mixer chạy (animation đã loại bỏ neck/head tracks)
+        mixer.update(delta);
         
-        // ✅ Apply head rotation từ face tracking (KHÔNG bị animation override)
+        // ✅ Apply head rotation từ face tracking (không bị animation override vì đã remove tracks)
         if (riggedFaceFromContext?.head && neckBone) {
           tmpEuler.set(
             riggedFaceFromContext.head.x * 1.0,
@@ -528,41 +528,7 @@ export const VRMAvatar = ({
         }
       } else {
         // Không có face tracking - animation điều khiển tất cả
-        // ✅ RESET expressions và head rotation về idle state
-        if (targetBlendShapes.current && Object.keys(targetBlendShapes.current).length > 0) {
-          console.log('🔄 No face tracking - Clearing expressions and resetting head rotation');
-          targetBlendShapes.current = {};
-          currentBlendShapes.current = {};
-          
-          // Reset tất cả expressions về 0
-          if (userData.vrm && wflwSolver) {
-            wflwSolver.applyBlendShapesToVRM(userData.vrm, {});
-          }
-          
-          // Reset neck/head rotation về initial pose
-          const neckBone = userData.vrm.humanoid?.getNormalizedBoneNode('neck');
-          const headBone = userData.vrm.humanoid?.getNormalizedBoneNode('head');
-          
-          if (neckBone && initialLocalQuats.current["neck"]) {
-            neckBone.quaternion.slerp(initialLocalQuats.current["neck"], delta * 5);
-          }
-          if (headBone && initialLocalQuats.current["head"]) {
-            headBone.quaternion.slerp(initialLocalQuats.current["head"], delta * 5);
-          }
-        }
-        
-        // ✅ LOGIC: CHỈ chạy idle animation khi:
-        // - Camera TẮT (isCameraActive = false) HOẶC
-        // - autoPlayIdle = true (force idle luôn chạy)
-        // 
-        // ❌ KHÔNG chạy animation khi:
-        // - Camera BẬT (isCameraActive = true) NHƯNG không detect mặt
-        //   → Model đứng yên hoàn toàn (freezed idle pose)
-        if (!isCameraActive || autoPlayIdle) {
-          mixer.update(delta);
-        }
-        // else: Camera BẬT nhưng không có mặt → không update mixer → model đứng yên
-        
+        mixer.update(delta);
         debug.lastNeckQuat = null;
       }
     } else if (mixer) {
@@ -613,14 +579,12 @@ export const VRMAvatar = ({
         blendShapes.Blink_L = Math.max(0, Math.min(1, riggedFace.current.blink.l));
         blendShapes.Blink_R = Math.max(0, Math.min(1, riggedFace.current.blink.r));
         
-        // 🎯 DEBUG: Log mỗi 1s (tạm thời để debug)
-        if (!window._lastEyeOverrideLog || Date.now() - window._lastEyeOverrideLog > 1000) {
-          console.log('🟢 [STAGE 2] riggedFace → blendShapes:', {
-            'riggedFace.blink.l': riggedFace.current.blink.l.toFixed(3),
-            'riggedFace.blink.r': riggedFace.current.blink.r.toFixed(3),
-            '→ blendShapes.Blink_L': blendShapes.Blink_L.toFixed(3),
-            '→ blendShapes.Blink_R': blendShapes.Blink_R.toFixed(3)
-          });
+        // 🎯 DEBUG: Log mỗi 3s để verify MediaPipe đang override
+        if (!window._lastEyeOverrideLog || Date.now() - window._lastEyeOverrideLog > 3000) {
+          // console.log('\n👁️ === EYE CONTROL: MediaPipe Override ===');
+          // console.log(`Before (WFLW): L=${(beforeOverride.L || 0).toFixed(3)}, R=${(beforeOverride.R || 0).toFixed(3)}`);
+          // console.log(`After (MediaPipe): L=${blendShapes.Blink_L.toFixed(3)}, R=${blendShapes.Blink_R.toFixed(3)}`);
+          // console.log(`Source: riggedFace.blink = { l:${riggedFace.current.blink.l.toFixed(3)}, r:${riggedFace.current.blink.r.toFixed(3)} }`);
           window._lastEyeOverrideLog = Date.now();
         }
       }
