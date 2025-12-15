@@ -100,6 +100,8 @@ async function extractThumbnail(file: File): Promise<string> {
     });
   }
 
+const PREVIEW_MODEL_KEY = 'pbl6_preview_model_url';
+
 // ==== COMPONENT CHÍNH QUẢN LÝ STUDIO ====
 export function VRMStudio() {
   // 🔄 Get ONLY setSelectedModel from context (don't subscribe to selectedModelUrl to avoid re-render)
@@ -121,7 +123,15 @@ export function VRMStudio() {
     }
   ]);
   
-  const [currentVrmUrl, setCurrentVrmUrl] = useState<string | null>(modelList[0]?.vrmUrl || null);
+  const [currentVrmUrl, setCurrentVrmUrl] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const savedUrl = localStorage.getItem(PREVIEW_MODEL_KEY);
+      if (savedUrl) {
+        return savedUrl; 
+      }
+    }
+    return modelList[0]?.vrmUrl || null;
+  });
   const [selectedInModal, setSelectedInModal] = useState<string | null>(modelList[0]?.id || null);
   const [previewInModalUrl, setPreviewInModalUrl] = useState<string | null>(modelList[0]?.vrmUrl || null);
 
@@ -148,6 +158,24 @@ export function VRMStudio() {
   });
   
   const selectTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce timeout
+
+  useEffect(() => {
+    if (currentVrmUrl && typeof window !== 'undefined') {
+      localStorage.setItem(PREVIEW_MODEL_KEY, currentVrmUrl);
+      console.log('💾 Saved preview model to localStorage:', currentVrmUrl);
+    }
+  }, [currentVrmUrl]);
+
+  useEffect(() => {
+    if (currentVrmUrl && modelList.length > 0) {
+      const matchedModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
+      if (matchedModel) {
+        setSelectedInModal(matchedModel.id);
+        setPreviewInModalUrl(matchedModel.vrmUrl);
+        console.log('✅ Restored selectedInModal:', matchedModel.id);
+      }
+    }
+  }, [modelList]);
 
   // === Load models từ server khi component mount ===
   useEffect(() => {
@@ -297,10 +325,7 @@ export function VRMStudio() {
     const selectedModel = modelList.find(m => m.id === selectedInModal);
     if (selectedModel) {
       setIsLoading(true);
-      
-      // Debug: Log URL để kiểm tra
-      console.log("Loading model from:", selectedModel.vrmUrl);
-      
+    
       setCurrentVrmUrl(selectedModel.vrmUrl);
       
       // Tắt loading sau 3s
