@@ -66,14 +66,11 @@ export function VideoCallRoom() {
   const chunksRef = useRef<Blob[]>([])
   const canvasRef = useRef<HTMLCanvasElement | null>(null) // ✅ Store canvas ref
   
-<<<<<<< HEAD
   // 🎨 Background and Filter states
   const [background, setBackground] = useState<BackgroundOption>(BACKGROUNDS[0])
   const [filter, setFilter] = useState<FilterType>("none")
   
   // Refs cho WebSocket face tracking (WFLW - head + mouth)
-=======
->>>>>>> servercall
   const videoElement = useRef<HTMLVideoElement>(null)
   const drawCanvas = useRef<HTMLCanvasElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
