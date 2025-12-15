@@ -110,7 +110,7 @@ export function VideoCallRoom() {
     }
   )
 
-  // ✅ Canvas ready callback
+  //  Canvas ready callback
   const handleCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
     canvasRef.current = canvas;
     console.log('📦 Canvas stored in ref');
