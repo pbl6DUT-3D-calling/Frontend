@@ -11,15 +11,39 @@ import {
   Phone,
   PhoneOff,
   Users,
+  Circle,
+  Square,
 } from "lucide-react"
 
-import { Canvas } from "@react-three/fiber"
+import { Canvas, useThree } from "@react-three/fiber"
 import { Loader } from "@react-three/drei"
 import { Experience } from "./Experience"
 import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
 import { useModel } from "@/context/modelContext"
+
+// ✅ Recording Controller Component - Lives inside Canvas
+function RecordingController({ 
+  onCanvasReady 
+}: { 
+  onCanvasReady: (canvas: HTMLCanvasElement) => void 
+}) {
+  const { gl } = useThree();
+  
+  useEffect(() => {
+    if (gl.domElement) {
+      console.log('✅ Canvas ready:', {
+        width: gl.domElement.width,
+        height: gl.domElement.height,
+        type: gl.domElement.constructor.name
+      });
+      onCanvasReady(gl.domElement);
+    }
+  }, [gl, onCanvasReady]);
+  
+  return null;
+}
 
 export function VideoCallRoom() {
   const { selectedModelUrl } = useModel()
@@ -32,6 +56,13 @@ export function VideoCallRoom() {
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isInCall, setIsInCall] = useState(true)
   const [fpsDisplay, setFpsDisplay] = useState(0)
+
+  // Recording states
+  const [isRecording, setIsRecording] = useState(false)
+  const [showStopConfirm, setShowStopConfirm] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const canvasRef = useRef<HTMLCanvasElement | null>(null) // ✅ Store canvas ref
   
   const videoElement = useRef<HTMLVideoElement>(null)
   const drawCanvas = useRef<HTMLCanvasElement>(null)
@@ -71,6 +102,114 @@ export function VideoCallRoom() {
       }
     }
   )
+
+  // ✅ Canvas ready callback
+  const handleCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
+    canvasRef.current = canvas;
+    console.log('📦 Canvas stored in ref');
+  }, []);
+
+  // Recording functions
+  const downloadRecording = (blob: Blob, baseName: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `${baseName}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+
+    console.log(`💾 Recording saved: ${a.download}`);
+  };
+
+  const startRecording = async () => {
+    try {
+      if (!canvasRef.current) {
+        alert('Canvas not ready. Please wait a moment and try again.');
+        return;
+      }
+
+      const canvasElement = canvasRef.current;
+
+      console.log('🎬 Starting recording:', {
+        canvas: canvasElement.constructor.name,
+        size: `${canvasElement.width}x${canvasElement.height}`,
+        hasCaptureStream: typeof canvasElement.captureStream === 'function'
+      });
+
+      // Check if captureStream is available
+      if (typeof canvasElement.captureStream !== 'function') {
+        alert('Canvas recording is not supported in your browser.');
+        return;
+      }
+
+      const canvasStream = canvasElement.captureStream(30);
+
+      // Check if stream has video tracks
+      const videoTracks = canvasStream.getVideoTracks();
+      console.log('📹 Video tracks:', videoTracks.length);
+      
+      if (videoTracks.length === 0) {
+        alert('Canvas stream has no video tracks!');
+        return;
+      }
+
+      const mediaRecorder = new MediaRecorder(canvasStream, {
+        mimeType: 'video/webm;codecs=vp9',
+      });
+
+      chunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+          console.log(`📦 Chunk recorded: ${event.data.size} bytes`);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+        console.log(`💾 Total size: ${blob.size} bytes`);
+        downloadRecording(blob, '3d-avatar-recording');
+      };
+
+      mediaRecorder.start(1000);
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+
+      console.log('✅ Recording started');
+    } catch (error) {
+      console.error('❌ Failed to start recording:', error);
+      alert('Failed to start recording: ' + (error as Error).message);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setShowStopConfirm(false);
+      console.log('⏹️ Recording stopped');
+    }
+  };
+
+  const handleRecordingToggle = () => {
+    if (isRecording) {
+      if (showStopConfirm) {
+        stopRecording();
+      } else {
+        setShowStopConfirm(true);
+        setTimeout(() => setShowStopConfirm(false), 3000);
+      }
+    } else {
+      startRecording();
+    }
+  };
 
   const clearLandmarks = useCallback(() => {
     if (!drawCanvas.current) return
@@ -251,7 +390,6 @@ export function VideoCallRoom() {
 
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
-            // ⬅️ FIX: Merge MediaPipe eye data
             if (mediaPipeEyeDataRef.current) {
               vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
               vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
@@ -420,6 +558,10 @@ export function VideoCallRoom() {
     setIsInCall(!isInCall)
     if (isInCall) {
       setIsVideoOn(false)
+      // Stop recording if active
+      if (isRecording) {
+        stopRecording();
+      }
     }
   }
 
@@ -435,12 +577,18 @@ export function VideoCallRoom() {
         <CardContent className="space-y-4">
           <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
             {isInCall && (
-              <Canvas shadows camera={{ position: [0, 0, 1.0], fov: 30 }}>
+              <Canvas 
+                shadows 
+                camera={{ position: [0, 0, 1.0], fov: 30 }}
+                gl={{ preserveDrawingBuffer: true }}
+              >
                 <color attach="background" args={["#333"]} />
                 <fog attach="fog" args={["#333", 10, 20]} />
                 <Suspense fallback={null}>
                   <Experience key={`videocall-${selectedModelUrl}`} modelUrl={selectedModelUrl} />
                 </Suspense>
+                {/* ✅ Recording Controller */}
+                <RecordingController onCanvasReady={handleCanvasReady} />
               </Canvas>
             )}
             
@@ -449,6 +597,20 @@ export function VideoCallRoom() {
                 <div className="text-center">
                   <Phone className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">Call ended</p>
+                </div>
+              </div>
+            )}
+
+            {/* Recording Indicator */}
+            {isRecording && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20">
+                <div className="bg-red-500/90 backdrop-blur-sm border border-red-400 rounded-full px-4 py-2 shadow-lg animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <Circle className="w-3 h-3 fill-current animate-pulse" />
+                    <span className="text-white text-sm font-semibold">
+                      Recording 3D Avatar
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -489,29 +651,50 @@ export function VideoCallRoom() {
             </div>
           </div>
 
+          {/* Control Buttons */}
           <div className="flex items-center justify-center gap-4">
             <Button
               variant={isVideoOn ? "default" : "outline"}
               size="icon"
               onClick={toggleVideo}
               disabled={!isInCall}
+              title={isVideoOn ? "Turn off camera" : "Turn on camera"}
             >
               {isVideoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
             </Button>
-            
-            <Button
-              variant={isAudioOn ? "default" : "outline"}
-              size="icon"
-              onClick={toggleAudio}
-              disabled={!isInCall}
-            >
-              {isAudioOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-            </Button>
+
+            {/* Recording Button - Simple Toggle */}
+            <div className="relative">
+              <Button
+                variant={isRecording ? "destructive" : "outline"}
+                size="icon"
+                onClick={handleRecordingToggle}
+                disabled={!isInCall}
+                className={isRecording ? "animate-pulse" : ""}
+                title={isRecording ? "Stop recording" : "Start recording"}
+              >
+                {isRecording ? (
+                  <Square className="w-4 h-4 fill-current" />
+                ) : (
+                  <Circle className="w-4 h-4" />
+                )}
+              </Button>
+              
+              {showStopConfirm && (
+                <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap shadow-lg">
+                  Click again to stop
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                    <div className="border-4 border-transparent border-t-gray-800" />
+                  </div>
+                </div>
+              )}
+            </div>
             
             <Button
               variant={isInCall ? "destructive" : "default"}
               size="icon"
               onClick={toggleCall}
+              title={isInCall ? "End call" : "Start call"}
             >
               {isInCall ? <PhoneOff className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
             </Button>
@@ -536,12 +719,20 @@ export function VideoCallRoom() {
                 <p className="text-sm font-medium">You</p>
                 <p className="text-xs text-muted-foreground">Host</p>
               </div>
-              {isVideoOn && (
-                <span className="text-xs text-green-500 flex items-center gap-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Camera On
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {isVideoOn && (
+                  <span className="text-xs text-green-500 flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    Camera On
+                  </span>
+                )}
+                {isRecording && (
+                  <span className="text-xs text-red-500 flex items-center gap-1">
+                    <Circle className="w-2 h-2 fill-current animate-pulse" />
+                    Recording
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>

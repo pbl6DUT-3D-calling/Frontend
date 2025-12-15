@@ -33,7 +33,7 @@ export default function ChatInput({ onSend }: ChatInputProps) {
         onChange={(e) => setMessage(e.target.value)}
         onKeyPress={handleKeyPress}
         placeholder="Type a message..."
-        className="flex-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        className="flex-1 px-3 py-2 bg-secondary text-black border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
       />
       <Button
         size="icon"

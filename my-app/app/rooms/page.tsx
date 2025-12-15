@@ -51,6 +51,7 @@ export default function RoomsPage() {
     fetchRooms();
   }, [fetchRooms]);
 
+
   // // ⬅️ Auto-refresh khi tab được focus lại (user quay lại trang)
   // useEffect(() => {
   //   const handleVisibilityChange = () => {
@@ -68,9 +69,9 @@ export default function RoomsPage() {
   //   return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   // }, [lastRefresh, fetchRooms]);
 
-  // const handleJoinRoom = (roomName: string) => {
-  //   router.push(`/room?room=${encodeURIComponent(roomName)}`);
-  // };
+  const handleJoinRoom = (roomName: string) => {
+    router.push(`/room?room=${encodeURIComponent(roomName)}`);
+  };
 
 
   // ⬅️ Format thời gian refresh

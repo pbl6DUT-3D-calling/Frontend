@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MoreVertical, Video as VideoIcon, Settings } from 'lucide-react';
+import React from 'react';
+import { MoreVertical, Settings, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,35 +11,36 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function MoreActionsMenu() {
-  const [isRecording, setIsRecording] = useState(false);
-
-  const handleStartRecording = () => {
-    // TODO: Implement screen recording with MediaRecorder API
-    console.log('Start recording');
-    setIsRecording(true);
+  const handleOpenSettings = () => {
+    console.log('Open settings');
+    // TODO: Open settings modal
   };
 
-  const handleStopRecording = () => {
-    console.log('Stop recording');
-    setIsRecording(false);
+  const handleViewParticipants = () => {
+    console.log('View participants');
+    // TODO: Open participants panel
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" className="rounded-full w-12 h-12">
+        <Button 
+          variant="default"
+          size="icon"
+          className="rounded-full w-10 h-10"
+          title="More Actions"
+        >
           <MoreVertical className="w-5 h-5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem
-          onClick={isRecording ? handleStopRecording : handleStartRecording}
-          className="cursor-pointer"
-        >
-          <VideoIcon className="w-4 h-4 mr-2" />
-          {isRecording ? 'Stop Recording' : 'Start Recording'}
+      
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem onClick={handleViewParticipants} className="cursor-pointer">
+          <Users className="w-4 h-4 mr-2" />
+          Participants
         </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer">
+        
+        <DropdownMenuItem onClick={handleOpenSettings} className="cursor-pointer">
           <Settings className="w-4 h-4 mr-2" />
           Settings
         </DropdownMenuItem>

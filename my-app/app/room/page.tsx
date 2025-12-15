@@ -17,10 +17,15 @@ import VRMVideoPublisher from '@/components/video-call/VRMVideoPublisher';
 import PreviewMedia from '@/components/video-call/PreviewMedia';
 import { ModelProvider } from '@/context/modelContext';
 import { VRMProvider } from '@/context/vrmContext';
-
+import RecordingIndicator from '@/components/video-call/controls/RecordingIndicator';
 import MediaControlBar from '@/components/video-call/controls/MediaControlBar';
 import LayoutSwitcher from '@/components/video-call/controls/LayoutSwitcher';
-import ChatPanel from '@/components/video-call/chat/ChatPanel';
+import ResizablePanel from '@/components/video-call/chat/ResizablePanel';
+import ChatMessage from '@/components/video-call/chat/ChatMessage';
+import ChatInput from '@/components/video-call/chat/ChatInput';
+import { useChat } from '@/components/video-call/hooks/useChat';
+import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
 
 export default function Page() {
   const params = useSearchParams();
@@ -32,6 +37,7 @@ export default function Page() {
   const [shouldRender, setShouldRender] = useState(false);
   const [is3DEnabled, setIs3DEnabled] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatPanelWidth, setChatPanelWidth] = useState(320);
   const [previewSettings, setPreviewSettings] = useState({
     isCameraOn: true,
     isMicOn: true
@@ -217,16 +223,19 @@ export default function Page() {
             {/* Main Content Wrapper */}
             <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 88px)' }}>
               
-              {/* Video Grid Area - Co dãn theo chat */}
+              {/* Video Grid Area - Co dãn theo chat width */}
               <div 
                 className="flex-1 flex flex-col transition-all duration-300 h-full"
                 style={{ 
-                  marginRight: isChatOpen ? '320px' : '0'
+                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0'
                 }}
               >
                 {/* Video Grid - Chiếm toàn bộ không gian còn lại */}
                 <div className="flex-1 relative overflow-hidden">
                   <MyVideoConference />
+                  
+                  {/* ✅ THÊM Recording Indicator - TOP CENTER */}
+                  <RecordingIndicator />
                   
                   {/* Layout Switcher - Top Right của video area */}
                   <div className="absolute top-4 right-4 z-10">
@@ -252,10 +261,11 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* Chat Panel - Fixed Right Side, Full Height */}
-              <ChatPanel 
+              {/* Chat Panel - Resizable */}
+              <ChatPanelWithResize 
                 isOpen={isChatOpen} 
-                onClose={() => setIsChatOpen(false)} 
+                onClose={() => setIsChatOpen(false)}
+                onWidthChange={setChatPanelWidth}
               />
             </div>
 
@@ -280,7 +290,7 @@ export default function Page() {
   );
 }
 
-// ===== AVATAR CONTROLS (GIỮ NGUYÊN) =====
+// ===== AVATAR CONTROLS =====
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
@@ -368,5 +378,70 @@ function MyVideoConference() {
     <GridLayout tracks={tracks} style={{ height: '100%' }}>
       <ParticipantTile />
     </GridLayout>
+  );
+}
+
+// ===== CHAT PANEL WITH RESIZE =====
+function ChatPanelWithResize({ 
+  isOpen, 
+  onClose, 
+  onWidthChange 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  onWidthChange: (width: number) => void;
+}) {
+  const { messages, sendMessage } = useChat();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(320);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    onWidthChange(width);
+  }, [width, onWidthChange]);
+
+  return (
+    <ResizablePanel 
+      isOpen={isOpen}
+      defaultWidth={320}
+      minWidth={280}
+      maxWidth={640}
+      onWidthChange={setWidth}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <h3 className="font-semibold text-lg text-white">Chat</h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="hover:bg-gray-800 text-gray-400 hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Messages List */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 text-sm mt-8">
+            No messages yet. Start the conversation!
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-gray-800">
+        <ChatInput onSend={sendMessage} />
+      </div>
+    </ResizablePanel>
   );
 }

@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { Video, VideoOff, Mic, MicOff, PhoneOff, MessageSquare, MonitorUp, MonitorX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLocalParticipant } from '@livekit/components-react';
+import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import MoreActionsMenu from './MoreActionsMenu';
+import RecordingButton from './RecordingButton';
 
 interface MediaControlBarProps {
   isChatOpen: boolean;
@@ -14,6 +15,7 @@ interface MediaControlBarProps {
 
 export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaControlBarProps) {
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
+  const room = useRoomContext();
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const toggleCamera = () => {
@@ -39,10 +41,19 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
     }
   };
 
-  const handleEndCall = () => {
+  const handleEndCall = async () => {
     if (confirm('Are you sure you want to end the call?')) {
-      localParticipant.disconnect();
-      window.location.href = '/';
+      try {
+        await room.disconnect();
+        console.log('Disconnected from room');
+        
+        setTimeout(() => {
+          window.location.href = '/room';
+        }, 100);
+      } catch (error) {
+        console.error('Error disconnecting:', error);
+        window.location.href = '/room';
+      }
     }
   };
 
@@ -54,7 +65,7 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
           {/* Left: Room Info */}
           <div className="flex-1">
             <p className="text-sm text-gray-400">
-              {localParticipant.name || localParticipant.identity}
+              {room.name}
             </p>
           </div>
 
@@ -84,7 +95,7 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
 
             {/* Screen Share */}
             <Button
-              variant={isScreenSharing ? 'default' : 'outline'}
+              variant={isScreenSharing ? 'destructive' : 'default'}
               size="icon"
               onClick={toggleScreenShare}
               className="rounded-full w-12 h-12"
@@ -92,6 +103,12 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
             >
               {isScreenSharing ? <MonitorX className="w-5 h-5" /> : <MonitorUp className="w-5 h-5" />}
             </Button>
+
+            {/* Divider */}
+            <div className="w-px h-8 bg-gray-700 mx-2" />
+
+            {/* Recording Button - MỚI */}
+            <RecordingButton />
 
             {/* Divider */}
             <div className="w-px h-8 bg-gray-700 mx-2" />
@@ -112,7 +129,7 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
           <div className="flex-1 flex items-center justify-end gap-3">
             {/* Chat */}
             <Button
-              variant={isChatOpen ? 'default' : 'outline'}
+              variant={isChatOpen ? 'destructive' : 'default'}
               size="icon"
               onClick={onChatToggle}
               className="rounded-full w-10 h-10"

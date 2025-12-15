@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { VRM } from '@pixiv/three-vrm';
 import { AIServerClient, AIServerResult } from '../services/aiServerClient';
 import { animateVRMWithAI } from '../vrmRiggingAI';
-import { useMediaPipeEyes } from '@/hooks/useEyes'; // ⬅️ THÊM
+import { useMediaPipeEyes } from '@/hooks/useEyes';
+
+const FRAME_WIDTH = 160;
+const FRAME_HEIGHT = 120;
 
 export function useAITracking(
   enabled: boolean,
@@ -14,42 +17,36 @@ export function useAITracking(
   const [isReady, setIsReady] = useState(false);
   const aiClientRef = useRef<AIServerClient | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const lastFrameTimeRef = useRef(0);
   
-  // ⬅️ THÊM: MediaPipe eye data ref
+  // ✅ THAY ĐỔI: Thêm isProcessingRef giống Video Call Room
+  const isProcessingRef = useRef(false);
+  const latencyRef = useRef(0);
+  const lastSendTimeRef = useRef(0);
+  const frameSkipCounter = useRef(0);
+  
   const mediaPipeEyeDataRef = useRef<{
     blinkLeft: number;
     blinkRight: number;
   } | null>(null);
 
-  // ⬅️ THÊM: Initialize MediaPipe for eyes
   const faceMeshRef = useMediaPipeEyes(
     videoRef.current,
     enabled,
     (eyeData) => {
       mediaPipeEyeDataRef.current = eyeData;
-      
-      // Debug log every 3 seconds
-      if (!window._lastAITrackingEyeLog || Date.now() - window._lastAITrackingEyeLog > 3000) {
-        console.log('👁️ [AI Tracking] MediaPipe Eyes:', {
-          blinkLeft: eyeData.blinkLeft.toFixed(3),
-          blinkRight: eyeData.blinkRight.toFixed(3),
-        });
-        window._lastAITrackingEyeLog = Date.now();
-      }
     }
   );
 
   // Initialize AI Server connection
   useEffect(() => {
     if (!enabled) {
-      // Cleanup
       if (aiClientRef.current) {
         aiClientRef.current.disconnect();
         aiClientRef.current = null;
       }
       setIsConnected(false);
       setIsReady(false);
+      isProcessingRef.current = false; // ✅ RESET
       return;
     }
 
@@ -74,23 +71,29 @@ export function useAITracking(
       }
     );
 
-    // ⬅️ THÊM: Override eye blink với MediaPipe data
     client.onResult((result: AIServerResult) => {
-      if (!currentVrm || !result.found) return;
-
-      // ⬅️ MERGE: MediaPipe eyes + AI Server (head + mouth)
-      const mergedResult = { ...result };
+      // ✅ TÍNH LATENCY
+      const receiveTime = Date.now();
+      latencyRef.current = receiveTime - lastSendTimeRef.current;
       
-      // Override eye blink với MediaPipe
-      if (mediaPipeEyeDataRef.current) {
-        // Note: AI Server vẫn cung cấp landmarks, nhưng blink sẽ dùng MediaPipe
-        console.log('🔵 [useAITracking] Overriding eye blink with MediaPipe');
+      if (!currentVrm || !result.found) {
+        isProcessingRef.current = false; // ✅ RESET để gửi tiếp
+        return;
       }
 
       const delta = clockRef.current.getDelta();
       
-      // ⬅️ Pass MediaPipe eye data vào animateVRMWithAI
-      animateVRMWithAI(currentVrm, mergedResult, delta, mediaPipeEyeDataRef.current);
+      animateVRMWithAI(
+        currentVrm, 
+        result, 
+        delta, 
+        mediaPipeEyeDataRef.current,
+        FRAME_WIDTH,
+        FRAME_HEIGHT
+      );
+
+      // ✅ RESET isProcessing để cho phép gửi frame tiếp
+      isProcessingRef.current = false;
     });
 
     aiClientRef.current = client;
@@ -105,10 +108,11 @@ export function useAITracking(
         aiClientRef.current.disconnect();
         aiClientRef.current = null;
       }
+      isProcessingRef.current = false;
     };
   }, [enabled, currentVrm]);
 
-  // Send frames to AI Server
+  // ✅ Send frames - LOGIC GIỐNG VIDEO CALL ROOM
   useEffect(() => {
     if (!enabled || !isReady || !videoRef.current || !aiClientRef.current) {
       if (animationFrameRef.current) {
@@ -119,8 +123,8 @@ export function useAITracking(
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = 160; // Low resolution for speed
-    canvas.height = 120;
+    canvas.width = FRAME_WIDTH;
+    canvas.height = FRAME_HEIGHT;
     const ctx = canvas.getContext('2d', { willReadFrequently: false, alpha: false });
 
     const sendFrame = () => {
@@ -128,8 +132,16 @@ export function useAITracking(
         return;
       }
 
-      const now = performance.now();
-      if (now - lastFrameTimeRef.current < 33) { // ~30 FPS
+      // ✅ NATURAL THROTTLING: Chỉ skip khi đang xử lý + latency cao
+      if (isProcessingRef.current) {
+        if (latencyRef.current > 200) {
+          frameSkipCounter.current++;
+          if (frameSkipCounter.current < 3) {
+            animationFrameRef.current = requestAnimationFrame(sendFrame);
+            return;
+          }
+          frameSkipCounter.current = 0;
+        }
         animationFrameRef.current = requestAnimationFrame(sendFrame);
         return;
       }
@@ -137,24 +149,25 @@ export function useAITracking(
       try {
         const video = videoRef.current;
         if (video.readyState === video.HAVE_ENOUGH_DATA && ctx) {
-          // Draw resized frame
-          ctx.drawImage(video, 0, 0, 160, 120);
+          ctx.drawImage(video, 0, 0, FRAME_WIDTH, FRAME_HEIGHT);
           
-          // ⬅️ THÊM: Call MediaPipe detection (passive - dùng chung video)
           if (faceMeshRef?.detectForVideoFrame) {
             const timestamp = performance.now();
             faceMeshRef.detectForVideoFrame(video, timestamp);
           }
           
-          // Convert to base64
           const base64Image = canvas.toDataURL('image/jpeg', 0.3).split(',')[1];
           
-          // Send to AI Server
+          // ✅ GHI NHẬN THỜI GIAN GỬI
+          lastSendTimeRef.current = Date.now();
           aiClientRef.current.sendFrame(base64Image);
-          lastFrameTimeRef.current = now;
+          
+          // ✅ SET isProcessing = true, chờ response
+          isProcessingRef.current = true;
         }
       } catch (error) {
         console.error('Error sending frame:', error);
+        isProcessingRef.current = false;
       }
 
       animationFrameRef.current = requestAnimationFrame(sendFrame);
@@ -167,6 +180,7 @@ export function useAITracking(
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
       }
+      isProcessingRef.current = false;
     };
   }, [enabled, isReady, videoRef.current]);
 

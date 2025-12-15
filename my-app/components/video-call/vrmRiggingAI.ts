@@ -5,15 +5,27 @@ import { AIServerResult, AIServerLandmark } from './services/aiServerClient';
 declare global {
   interface Window {
     _lastBlinkLog?: number;
+    _prevMouthValues?: {
+      aa: number;
+      oh: number;
+      ou: number;
+    };
+    _prevHeadRotation?: {
+      pitch: number;
+      yaw: number;
+      roll: number;
+    };
+    _prevEyeBlink?: {
+      left: number;
+      right: number;
+    };
   }
 }
 
-// ⬅️ THÊM: MediaPipe eye data type
 interface MediaPipeEyeData {
   blinkLeft: number;
   blinkRight: number;
 }
-
 
 // Lerp helper
 const lerp = (start: number, end: number, amount: number): number => {
@@ -25,10 +37,39 @@ const clamp = (value: number, min: number, max: number): number => {
   return Math.max(min, Math.min(max, value));
 };
 
-// Smoothing filter
+// Decay helper
+const decay = (current: number, rate: number = 0.95): number => {
+  return current * rate;
+};
+
+// ✅ THÊM: Exponential Moving Average (EMA) - Smooth hơn simple average
+class EMAFilter {
+  private value: number | null = null;
+  private alpha: number;
+
+  constructor(alpha: number = 0.3) {
+    this.alpha = alpha; // Lower = smoother (0.1-0.5)
+  }
+
+  smooth(newValue: number): number {
+    if (this.value === null) {
+      this.value = newValue;
+      return newValue;
+    }
+    
+    this.value = this.alpha * newValue + (1 - this.alpha) * this.value;
+    return this.value;
+  }
+
+  reset() {
+    this.value = null;
+  }
+}
+
+// Smoothing filter (Original)
 class SmoothingFilter {
   private history: number[] = [];
-  private maxHistory = 5;
+  private maxHistory = 3; // ✅ GIẢM: 7 → 3 (faster response)
 
   smooth(value: number): number {
     this.history.push(value);
@@ -43,15 +84,54 @@ class SmoothingFilter {
   }
 }
 
-// Global smoothing filters
+// ✅ XÓA EMA filters (quá chậm) - Chỉ dùng SmoothingFilter
 const pitchFilter = new SmoothingFilter();
 const yawFilter = new SmoothingFilter();
 const rollFilter = new SmoothingFilter();
 
-// Convert AI Server's 98 landmarks to facial features
-function extractFacialFeatures(landmarks: AIServerLandmark[]) {
+const mouthAaFilter = new SmoothingFilter();
+const mouthOhFilter = new SmoothingFilter();
+const mouthOuFilter = new SmoothingFilter();
+
+const blinkLeftFilter = new SmoothingFilter();
+const blinkRightFilter = new SmoothingFilter();
+
+export const animateVRMWithAI = (
+  vrm: VRM,
+  result: AIServerResult,
+  delta: number = 0.016,
+  mediaPipeEyeData: MediaPipeEyeData | null = null,
+  imageWidth: number = 160,   // ⬅️ THÊM: default 160
+  imageHeight: number = 120   // ⬅️ THÊM: default 120
+) => {
+  if (!vrm || !result.found) return;
+
+  const { pitch, yaw, roll, landmarks } = result;
+
+  // ⬅️ LOG: Debug resolution mismatch
+  if (!window._lastResolutionLog || Date.now() - window._lastResolutionLog > 5000) {
+    console.log('📐 [vrmRiggingAI] Image resolution:', {
+      width: imageWidth,
+      height: imageHeight,
+      landmarksSample: landmarks.slice(0, 3).map(l => `(${l.x.toFixed(1)}, ${l.y.toFixed(1)})`)
+    });
+    window._lastResolutionLog = Date.now();
+  }
+
+  // ⬅️ FIX: Pass width/height vào extractFacialFeatures
+  const features = extractFacialFeatures(landmarks, imageWidth, imageHeight);
+  if (!features) return;
+
+  rigFaceAI(vrm, pitch, yaw, roll, features, delta, mediaPipeEyeData);
+};
+
+// ⬅️ CẬP NHẬT: extractFacialFeatures nhận width/height
+function extractFacialFeatures(
+  landmarks: AIServerLandmark[], 
+  imageWidth: number = 160,   // ⬅️ THÊM
+  imageHeight: number = 120   // ⬅️ THÊM
+) {
   if (landmarks.length !== 98) {
-    console.warn('Expected 98 landmarks, got', landmarks.length);
     return null;
   }
 
@@ -59,10 +139,10 @@ function extractFacialFeatures(landmarks: AIServerLandmark[]) {
   const rightEye = landmarks.slice(68, 76);
   const mouth = landmarks.slice(76, 96);
 
-  // ⬅️ AI Server eye openness (fallback nếu không có MediaPipe)
-  const leftEyeOpenness = calculateEyeOpenness(leftEye);
-  const rightEyeOpenness = calculateEyeOpenness(rightEye);
-  const mouthOpenness = calculateMouthOpenness(mouth);
+  // ⬅️ Pass width/height vào các hàm tính toán
+  const leftEyeOpenness = calculateEyeOpenness(leftEye, imageWidth, imageHeight);
+  const rightEyeOpenness = calculateEyeOpenness(rightEye, imageWidth, imageHeight);
+  const mouthOpenness = calculateMouthOpenness(mouth, imageWidth, imageHeight);
 
   return {
     leftEyeOpenness,
@@ -71,7 +151,12 @@ function extractFacialFeatures(landmarks: AIServerLandmark[]) {
   };
 }
 
-function calculateEyeOpenness(eyeLandmarks: AIServerLandmark[]): number {
+// ⬅️ CẬP NHẬT: Các hàm tính toán nhận width/height
+function calculateEyeOpenness(
+  eyeLandmarks: AIServerLandmark[], 
+  imageWidth: number, 
+  imageHeight: number
+): number {
   if (eyeLandmarks.length < 8) return 1;
 
   const d1 = Math.abs(eyeLandmarks[1].y - eyeLandmarks[7].y);
@@ -81,12 +166,22 @@ function calculateEyeOpenness(eyeLandmarks: AIServerLandmark[]): number {
   const avgHeight = (d1 + d2 + d3) / 3;
   const width = Math.abs(eyeLandmarks[4].x - eyeLandmarks[0].x);
   const ratio = avgHeight / (width + 0.001);
-  const openness = clamp((ratio - 0.05) / 0.2, 0, 1);
+  
+  // ⬅️ SCALE THEO RESOLUTION: Thresholds phụ thuộc vào kích thước ảnh
+  // 160x120 có EAR khác 240x180!
+  const resolutionFactor = Math.sqrt((imageWidth * imageHeight) / (160 * 120));
+  const adjustedRatio = ratio / resolutionFactor;
+  
+  const openness = clamp((adjustedRatio - 0.05) / 0.2, 0, 1);
 
   return openness;
 }
 
-function calculateMouthOpenness(mouthLandmarks: AIServerLandmark[]): number {
+function calculateMouthOpenness(
+  mouthLandmarks: AIServerLandmark[], 
+  imageWidth: number, 
+  imageHeight: number
+): number {
   if (mouthLandmarks.length < 20) return 0;
 
   const outerTop = mouthLandmarks[2].y;
@@ -104,27 +199,13 @@ function calculateMouthOpenness(mouthLandmarks: AIServerLandmark[]): number {
   const width = Math.abs(right - left);
 
   const ratio = avgHeight / (width + 0.001);
-  const openness = clamp((ratio - 0.05) / 0.4, 0, 1);
+  
+  // ✅ XÓA resolution factor (không cần thiết khi dùng 160x120 cố định)
+  // ✅ TĂNG RANGE: Cho phép openness lên tới 1.0
+  const openness = clamp(ratio / 0.4, 0, 1); // ✅ THAY ĐỔI: Normalize to 0-1
 
   return openness;
 }
-
-// ⬅️ SỬA: Thêm MediaPipe eye data parameter
-export const animateVRMWithAI = (
-  vrm: VRM,
-  result: AIServerResult,
-  delta: number = 0.016,
-  mediaPipeEyeData: MediaPipeEyeData | null = null // ⬅️ THÊM parameter
-) => {
-  if (!vrm || !result.found) return;
-
-  const { pitch, yaw, roll, landmarks } = result;
-
-  const features = extractFacialFeatures(landmarks);
-  if (!features) return;
-
-  rigFaceAI(vrm, pitch, yaw, roll, features, delta, mediaPipeEyeData); // ⬅️ Pass MediaPipe data
-};
 
 interface FacialFeatures {
   leftEyeOpenness: number;
@@ -132,7 +213,6 @@ interface FacialFeatures {
   mouthOpenness: number;
 }
 
-// ⬅️ SỬA: Thêm MediaPipe parameter
 const rigFaceAI = (
   vrm: VRM,
   pitch: number,
@@ -140,12 +220,14 @@ const rigFaceAI = (
   roll: number,
   features: FacialFeatures,
   delta: number,
-  mediaPipeEyeData: MediaPipeEyeData | null = null // ⬅️ THÊM
+  mediaPipeEyeData: MediaPipeEyeData | null = null
 ) => {
   if (!vrm?.expressionManager) return;
 
   const expressionManager = vrm.expressionManager;
-  const lerpAmount = Math.min(delta * 20, 0.5);
+  
+  // ✅ TĂNG lerp amount: 0.2 → 0.4 (FASTER RESPONSE)
+  const lerpAmount = Math.min(delta * 20, 0.4);
 
   const lerpExpression = (name: string, targetValue: number) => {
     const current = expressionManager.getValue(name) || 0;
@@ -153,11 +235,16 @@ const rigFaceAI = (
     expressionManager.setValue(name, clamp(newValue, 0, 1));
   };
 
-  // === HEAD ROTATION ===
+  // === HEAD ROTATION - ✅ XÓA EMA, CHỈ GIỮ 1 LAYER SMOOTHING ===
+  if (!window._prevHeadRotation) {
+    window._prevHeadRotation = { pitch, yaw, roll };
+  }
+
   const clampedPitch = clamp(pitch, -45, 45);
   const clampedYaw = clamp(yaw, -60, 60);
   const clampedRoll = clamp(roll, -30, 30);
 
+  // ✅ CHỈ 1 LAYER: Moving average
   const smoothPitch = pitchFilter.smooth(clampedPitch);
   const smoothYaw = yawFilter.smooth(clampedYaw);
   const smoothRoll = rollFilter.smooth(clampedRoll);
@@ -170,27 +257,22 @@ const rigFaceAI = (
     'neck',
     { x: pitchRad, y: yawRad, z: rollRad },
     0.5,
-    lerpAmount * 1.2,
+    lerpAmount * 1.5, // ✅ TĂNG: 1.0 → 1.5
     vrm
   );
 
-  // === EYES ===
-  // ⬅️ PRIORITY: MediaPipe 100% điều khiển blink
+  // === EYES - ✅ ĐƠN GIẢN HÓA ===
+  if (!window._prevEyeBlink) {
+    window._prevEyeBlink = { left: 0, right: 0 };
+  }
+
   if (mediaPipeEyeData) {
-    // ✅ Dùng MediaPipe (ưu tiên cao nhất)
-    lerpExpression('blinkLeft', mediaPipeEyeData.blinkLeft);
-    lerpExpression('blinkRight', mediaPipeEyeData.blinkRight);
+    const smoothBlinkLeft = blinkLeftFilter.smooth(mediaPipeEyeData.blinkLeft);
+    const smoothBlinkRight = blinkRightFilter.smooth(mediaPipeEyeData.blinkRight);
     
-    // Debug log
-    if (!window._lastBlinkLog || Date.now() - window._lastBlinkLog > 1000) {
-      console.log('👁️ [vrmRiggingAI] Using MediaPipe blink:', {
-        blinkLeft: mediaPipeEyeData.blinkLeft.toFixed(3),
-        blinkRight: mediaPipeEyeData.blinkRight.toFixed(3),
-      });
-      window._lastBlinkLog = Date.now();
-    }
+    lerpExpression('blinkLeft', smoothBlinkLeft);
+    lerpExpression('blinkRight', smoothBlinkRight);
   } else {
-    // ⬇️ Fallback: Dùng AI Server eye openness
     const blinkThreshold = 0.5;
 
     const leftBlink = features.leftEyeOpenness < blinkThreshold 
@@ -200,33 +282,66 @@ const rigFaceAI = (
       ? 1 - features.rightEyeOpenness / blinkThreshold 
       : 0;
 
-    lerpExpression('blinkLeft', leftBlink);
-    lerpExpression('blinkRight', rightBlink);
-    
-    console.warn('⚠️ Using AI Server blink (MediaPipe not available)');
+    const smoothBlinkLeft = blinkLeftFilter.smooth(leftBlink);
+    const smoothBlinkRight = blinkRightFilter.smooth(rightBlink);
+
+    lerpExpression('blinkLeft', smoothBlinkLeft);
+    lerpExpression('blinkRight', smoothBlinkRight);
   }
 
-  // === MOUTH ===
-  const mouthOpen = features.mouthOpenness;
+  // === MOUTH - ✅ FIX THRESHOLDS ===
+  const mouthOpen = features.mouthOpenness; // ✅ BÂY GIỜ: 0.0 - 1.0
+  
+  if (!window._prevMouthValues) {
+    window._prevMouthValues = { aa: 0, oh: 0, ou: 0 };
+  }
+  
+  let targetAa = 0;
+  let targetOh = 0;
+  let targetOu = 0;
 
-  if (mouthOpen > 0.7) {
-    lerpExpression('aa', mouthOpen);
-    lerpExpression('oh', 0);
-    lerpExpression('ou', 0);
-  } else if (mouthOpen > 0.4) {
-    lerpExpression('aa', 0);
-    lerpExpression('oh', (mouthOpen - 0.4) / 0.3);
-    lerpExpression('ou', 0);
-  } else if (mouthOpen > 0.15) {
-    lerpExpression('aa', 0);
-    lerpExpression('oh', 0);
-    lerpExpression('ou', (mouthOpen - 0.15) / 0.25);
+  // ✅ FIX: Thresholds phù hợp với range 0-1
+  if (mouthOpen > 0.5) {
+    // Há miệng lớn (> 50%)
+    targetAa = (mouthOpen - 0.5) / 0.5; // Map 0.5-1.0 → 0-1
+  } else if (mouthOpen > 0.3) {
+    // Há miệng vừa (30-50%)
+    targetOh = (mouthOpen - 0.3) / 0.2; // Map 0.3-0.5 → 0-1
+  } else if (mouthOpen > 0.1) {
+    // Há miệng nhẹ (10-30%)
+    targetOu = (mouthOpen - 0.1) / 0.2; // Map 0.1-0.3 → 0-1
   } else {
-    lerpExpression('aa', 0);
-    lerpExpression('oh', 0);
-    lerpExpression('ou', 0);
-    lerpExpression('ee', 0);
-    lerpExpression('ih', 0);
+    // ✅ DECAY nhanh hơn: 0.97 → 0.90
+    targetAa = decay(window._prevMouthValues.aa, 0.90);
+    targetOh = decay(window._prevMouthValues.oh, 0.90);
+    targetOu = decay(window._prevMouthValues.ou, 0.90);
+  }
+  
+  // ✅ CHỈ 1 LAYER smoothing
+  const smoothAa = mouthAaFilter.smooth(targetAa);
+  const smoothOh = mouthOhFilter.smooth(targetOh);
+  const smoothOu = mouthOuFilter.smooth(targetOu);
+  
+  window._prevMouthValues.aa = smoothAa;
+  window._prevMouthValues.oh = smoothOh;
+  window._prevMouthValues.ou = smoothOu;
+  
+  // ✅ APPLY trực tiếp (không lerp thêm)
+  lerpExpression('aa', smoothAa);
+  lerpExpression('oh', smoothOh);
+  lerpExpression('ou', smoothOu);
+  lerpExpression('ee', 0);
+  lerpExpression('ih', 0);
+  
+  // ✅ DEBUG LOG
+  if (!window._lastMouthLog || Date.now() - window._lastMouthLog > 2000) {
+    console.log('👄 Mouth:', {
+      openness: mouthOpen.toFixed(3),
+      aa: smoothAa.toFixed(3),
+      oh: smoothOh.toFixed(3),
+      ou: smoothOu.toFixed(3)
+    });
+    window._lastMouthLog = Date.now();
   }
 };
 
@@ -234,7 +349,7 @@ export const rigRotation = (
   name: string,
   rotation: { x: number; y: number; z: number },
   dampener = 1,
-  lerpAmount = 0.3,
+  lerpAmount = 0.3, // ✅ TĂNG: 0.2 → 0.3
   vrm: VRM
 ) => {
   const bone = vrm.humanoid?.getNormalizedBoneNode(name as any);
