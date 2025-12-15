@@ -13,7 +13,6 @@ import {
   Users,
 } from "lucide-react"
 
-// --- CÁC IMPORT TỪ PROJECT CŨ ---
 import { Canvas } from "@react-three/fiber"
 import { Loader } from "@react-three/drei"
 import { Experience } from "./Experience"
@@ -23,34 +22,32 @@ import { useMediaPipeEyes } from "../hooks/useEyes"
 import { useModel } from "@/context/modelContext"
 
 export function VideoCallRoom() {
-  const { selectedModelUrl } = useModel() // 🔄 Get selected model from context
+  const { selectedModelUrl } = useModel()
   
-  // 🔍 DEBUG: Log model URL changes
   useEffect(() => {
-    console.log('🎥 ========== VIDEO CALL ROOM MODEL UPDATE ==========');
-    console.log('🎯 Video Call Room Model URL:', selectedModelUrl);
-    console.log('===================================================');
+    console.log('🎥 Video Call Room Model URL:', selectedModelUrl);
   }, [selectedModelUrl]);
   
-  const [isVideoOn, setIsVideoOn] = useState(false) // Camera tắt mặc định
+  const [isVideoOn, setIsVideoOn] = useState(false)
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isInCall, setIsInCall] = useState(true)
   const [fpsDisplay, setFpsDisplay] = useState(0)
   
-  // Refs cho WebSocket face tracking (WFLW - head + mouth)
   const videoElement = useRef<HTMLVideoElement>(null)
   const drawCanvas = useRef<HTMLCanvasElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameRef = useRef<number | null>(null)
-  const isProcessingRef = useRef(false) // Ping-Pong mechanism
+  const isProcessingRef = useRef(false)
   const fpsCounterRef = useRef({ frames: 0, lastTime: Date.now() })
   const lastSendTimeRef = useRef(0)
   const latencyRef = useRef(0)
-  const shouldStopRef = useRef(false)  // Flag để dừng loop
-  const lastRigUpdateRef = useRef(0)  // Throttle setRiggedFace
+  const shouldStopRef = useRef(false)
+  const lastRigUpdateRef = useRef(0)
+
+  const noFaceFramesRef = useRef(0)
+  const IDLE_THRESHOLD = 60
   
-  // MediaPipe eye data (để merge với WFLW)
   const mediaPipeEyeDataRef = useRef<{
     blinkLeft: number;
     blinkRight: number;
@@ -59,27 +56,22 @@ export function VideoCallRoom() {
   const setVideoElement = useVideoRecognition((state) => state.setVideoElement)
   const setRiggedFace = useVideoRecognition((state) => state.setRiggedFace)
   
-  // 👁️ MediaPipe cho mắt (passive mode - không tạo camera riêng)
   const faceMeshRef = useMediaPipeEyes(
     videoElement.current,
     isVideoOn,
     (eyeData) => {
       mediaPipeEyeDataRef.current = eyeData;
       
-      // Debug log mỗi 3 giây
       if (!window._lastCallbackLog || Date.now() - window._lastCallbackLog > 3000) {
         console.log('✅ MediaPipe callback received:', {
           blinkLeft: eyeData.blinkLeft.toFixed(3),
           blinkRight: eyeData.blinkRight.toFixed(3),
-          leftEAR: eyeData.leftEyeEAR.toFixed(3),
-          rightEAR: eyeData.rightEyeEAR.toFixed(3)
         });
         window._lastCallbackLog = Date.now();
       }
     }
   )
 
-  // Clear canvas (when no face detected)
   const clearLandmarks = useCallback(() => {
     if (!drawCanvas.current) return
     const ctx = drawCanvas.current.getContext('2d')
@@ -87,7 +79,6 @@ export function VideoCallRoom() {
     ctx.clearRect(0, 0, drawCanvas.current.width, drawCanvas.current.height)
   }, [])
 
-  // Draw WFLW landmarks on canvas
   const drawWFLWLandmarks = useCallback((landmarks: WFLWData['landmarks']) => {
     if (!drawCanvas.current || !landmarks || landmarks.length !== 98) {
       clearLandmarks()
@@ -99,7 +90,6 @@ export function VideoCallRoom() {
 
     ctx.clearRect(0, 0, drawCanvas.current.width, drawCanvas.current.height)
 
-    // Draw all points
     ctx.fillStyle = '#00ff00'
     landmarks.forEach((point) => {
       if (!point || typeof point.x !== 'number' || typeof point.y !== 'number') return
@@ -108,11 +98,9 @@ export function VideoCallRoom() {
       ctx.fill()
     })
 
-    // Helper to draw path
     const drawPath = (indices: number[], close = false) => {
       if (indices.length < 2) return
       
-      // Validate all indices exist
       const validIndices = indices.filter(i => 
         landmarks[i] && 
         typeof landmarks[i].x === 'number' && 
@@ -133,31 +121,15 @@ export function VideoCallRoom() {
     ctx.strokeStyle = '#00ff00'
     ctx.lineWidth = 1
 
-    // Face contour (0-32)
     drawPath(Array.from({ length: 33 }, (_, i) => i))
-
-    // Left eyebrow (33-41)
     drawPath(Array.from({ length: 9 }, (_, i) => i + 33))
-
-    // Right eyebrow (42-50)
     drawPath(Array.from({ length: 9 }, (_, i) => i + 42))
-
-    // Nose (51-59)
     drawPath(Array.from({ length: 9 }, (_, i) => i + 51))
-
-    // Left eye (60-67)
     drawPath(Array.from({ length: 8 }, (_, i) => i + 60), true)
-
-    // Right eye (68-75)
     drawPath(Array.from({ length: 8 }, (_, i) => i + 68), true)
-
-    // Outer mouth (76-87)
     drawPath(Array.from({ length: 12 }, (_, i) => i + 76), true)
-
-    // Inner mouth (88-95)
     drawPath(Array.from({ length: 8 }, (_, i) => i + 88), true)
 
-    // Highlight pupils (96, 97)
     ctx.fillStyle = '#ff0000'
     ctx.beginPath()
     ctx.arc(landmarks[96].x, landmarks[96].y, 4, 0, 2 * Math.PI)
@@ -165,50 +137,44 @@ export function VideoCallRoom() {
     ctx.beginPath()
     ctx.arc(landmarks[97].x, landmarks[97].y, 4, 0, 2 * Math.PI)
     ctx.fill()
-  }, [])
+  }, [clearLandmarks])
 
-  // Initialize WebSocket face tracking when camera turns on
   useEffect(() => {
     if (!isVideoOn) {
-      // Cleanup when camera is off
-      console.log("🧹 Cleaning up WebSocket and camera...")
+      console.log("🧹 Camera OFF - Cleaning up...")
       setVideoElement(null)
-      // setRiggedFace(null) // ❌ KHÔNG reset - giữ expression cuối cùng
+      setRiggedFace(null)
       
-      // Close WebSocket
       if (wsRef.current) {
         wsRef.current.close()
         wsRef.current = null
       }
       
-      // Stop camera stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
         streamRef.current = null
       }
       
-      // Cancel animation frame
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
       }
       
+      noFaceFramesRef.current = 0
       isProcessingRef.current = false
       console.log("✅ Cleanup complete")
       return
     }
 
-    // Initialize WebSocket face tracking
     const initFaceTracking = async () => {
       if (!videoElement.current) {
         console.error("❌ Video element not found")
         return
       }
 
-      console.log("🎥 Starting WebSocket face tracking...")
+      console.log("🎥 Starting face tracking...")
 
       try {
-        // 1. Get camera stream
         console.log("📹 Requesting camera access...")
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -223,34 +189,26 @@ export function VideoCallRoom() {
         videoElement.current.srcObject = stream
         await videoElement.current.play()
         
-        console.log("✅ Camera stream active")
+        console.log("✅ Camera active")
         setVideoElement(videoElement.current)
         
-        // Reset flags
         shouldStopRef.current = false
         isProcessingRef.current = false
+        noFaceFramesRef.current = 0
 
-        // Set canvas size - GIẢM resolution để tăng tốc độ
         if (drawCanvas.current) {
-          drawCanvas.current.width = 160  // Giảm từ 240
-          drawCanvas.current.height = 120  // Giảm từ 180
+          drawCanvas.current.width = 160
+          drawCanvas.current.height = 120
         }
 
-        // 2. Connect to WebSocket
-        console.log("🔌 Connecting to WebSocket server...")
-        // const ws = new WebSocket("ws://localhost:8000/ws/face-tracking")
-        const ws = new WebSocket("wss://emile-nonorthodox-loan.ngrok-free.dev/ws/face-tracking");
+        console.log("🔌 Connecting to WebSocket...")
+        const ws = new WebSocket(process.env.NEXT_PUBLIC_AI_WS_URL || "wss://emile-nonorthodox-loan.ngrok-free.dev/ws/face-tracking");
         wsRef.current = ws
 
         ws.onopen = () => {
-          console.log("✅ WebSocket connected - starting frame loop...")
-          
-          // TEST: Send a test message first
-          console.log("🧪 Sending test message to check server response...")
+          console.log("✅ WebSocket connected")
           ws.send(JSON.stringify({ type: "ping" }))
-          
-          // Start sending frames
-          setTimeout(() => sendFrame(), 100) // Delay để đảm bảo video ready
+          setTimeout(() => sendFrame(), 100)
         }
 
         ws.onmessage = (event) => {
@@ -258,18 +216,28 @@ export function VideoCallRoom() {
             const receiveTime = Date.now()
             const data: WFLWData = JSON.parse(event.data)
             
-            // Validate data structure
-            if (!data.landmarks || !Array.isArray(data.landmarks) || data.landmarks.length !== 98) {
-              // ✅ CLEAR CANVAS khi không có face detected
+            const hasFace = data.landmarks && Array.isArray(data.landmarks) && data.landmarks.length === 98
+            
+            if (!hasFace) {
               clearLandmarks()
+              noFaceFramesRef.current++
+              
+              if (noFaceFramesRef.current === IDLE_THRESHOLD) {
+                console.log('😴 No face for 1s → Idle mode')
+                setRiggedFace(null)
+              }
+              
               isProcessingRef.current = false
               return
             }
             
-            // Tính latency
+            if (noFaceFramesRef.current > 0) {
+              noFaceFramesRef.current = 0
+              console.log('👤 Face detected - Resuming tracking')
+            }
+            
             latencyRef.current = receiveTime - lastSendTimeRef.current
             
-            // Update FPS counter và hiển thị latency
             fpsCounterRef.current.frames++
             const now = Date.now()
             if (now - fpsCounterRef.current.lastTime >= 1000) {
@@ -279,21 +247,17 @@ export function VideoCallRoom() {
               fpsCounterRef.current.lastTime = now
             }
 
-            // Draw landmarks
             drawWFLWLandmarks(data.landmarks)
 
-            // Convert WFLW to VRM format - Dùng resolution mới
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
-            // ✅ OVERRIDE: MediaPipe 100% điều khiển blink (LUÔN LUÔN)
-            // WFLW đã set blink = 0, MediaPipe override tuyệt đối
+            // ⬅️ FIX: Merge MediaPipe eye data
             if (mediaPipeEyeDataRef.current) {
               vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
               vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
               
-              // Debug log mỗi 1 giây (tạm thời để debug)
               if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 1000) {
-                console.log('🔵 [STAGE 1] MediaPipe → vrmRig.blink:', {
+                console.log('🔵 MediaPipe → vrmRig.blink:', {
                   'mediaPipe.blinkLeft': mediaPipeEyeDataRef.current.blinkLeft.toFixed(3),
                   'mediaPipe.blinkRight': mediaPipeEyeDataRef.current.blinkRight.toFixed(3),
                   '→ vrmRig.blink.l': vrmRig.blink.l.toFixed(3),
@@ -302,23 +266,19 @@ export function VideoCallRoom() {
                 window._lastMergeLog = Date.now();
               }
             } else {
-              // ⚠️ MediaPipe chưa có data
-              console.warn('⚠️ mediaPipeEyeDataRef.current is NULL - mắt sẽ giữ mở');
-              vrmRig.blink.l = 0;
-              vrmRig.blink.r = 0;
+              vrmRig.blink.l = 0
+              vrmRig.blink.r = 0
             }
             
-            // ⚡ OPTIMIZATION: Throttle setRiggedFace (16ms = 60fps max)
             if (!lastRigUpdateRef.current || now - lastRigUpdateRef.current > 16) {
-              setRiggedFace(vrmRig);
-              lastRigUpdateRef.current = now;
+              setRiggedFace(vrmRig)
+              lastRigUpdateRef.current = now
             }
 
-            // Ready for next frame
             isProcessingRef.current = false
 
           } catch (error) {
-            console.error("❌ Error processing WebSocket message:", error)
+            console.error("❌ Error processing message:", error)
             isProcessingRef.current = false
           }
         }
@@ -331,29 +291,25 @@ export function VideoCallRoom() {
           console.log("🔌 WebSocket disconnected")
         }
 
-        // Reuse canvas - GIẢM resolution để tăng tốc độ
         const resizeCanvas = document.createElement('canvas')
-        resizeCanvas.width = 160   // Giảm từ 240
-        resizeCanvas.height = 120  // Giảm từ 180
+        resizeCanvas.width = 160
+        resizeCanvas.height = 120
         const resizeCtx = resizeCanvas.getContext('2d', { 
           willReadFrequently: false,
-          alpha: false  // Không cần alpha channel
+          alpha: false
         })
         
         let frameSkipCounter = 0
         
-        // Function to send frame to server
         const sendFrame = () => {
           if (!isVideoOn || !videoElement.current || !ws || ws.readyState !== WebSocket.OPEN) {
             return
           }
 
-          // STRICT PING-PONG: Chỉ gửi khi server đã trả về
           if (isProcessingRef.current) {
-            // Nếu latency > 200ms, skip nhiều frames hơn
             if (latencyRef.current > 200) {
               frameSkipCounter++
-              if (frameSkipCounter < 3) {  // Skip 2 frames
+              if (frameSkipCounter < 3) {
                 animationFrameRef.current = requestAnimationFrame(sendFrame)
                 return
               }
@@ -365,42 +321,31 @@ export function VideoCallRoom() {
 
           try {
             if (resizeCtx && videoElement.current.readyState === videoElement.current.HAVE_ENOUGH_DATA) {
-              // Draw resized frame
               resizeCtx.drawImage(videoElement.current, 0, 0, 160, 120)
               
-              // 👁️ Gọi MediaPipe FaceLandmarker (passive - dùng chung video)
               if (faceMeshRef?.detectForVideoFrame) {
-                const timestamp = performance.now();
-                faceMeshRef.detectForVideoFrame(videoElement.current, timestamp);
-              } else if (!window._mediaPipeWarningShown) {
-                console.warn('⚠️ MediaPipe not initialized:', { faceMeshRef, hasDetectFn: !!faceMeshRef?.detectForVideoFrame });
-                window._mediaPipeWarningShown = true;
+                const timestamp = performance.now()
+                faceMeshRef.detectForVideoFrame(videoElement.current, timestamp)
               }
               
-              // Convert to JPEG base64 - GIẢM quality xuống 0.2
               const base64Image = resizeCanvas.toDataURL('image/jpeg', 0.2).split(',')[1]
               
-              // Send to server
               lastSendTimeRef.current = Date.now()
               ws.send(base64Image)
               isProcessingRef.current = true
-              
-              // XÓA TIMEOUT - Chỉ đợi response thật sự từ server
-              // Không force reset sau 300ms nữa
             }
           } catch (error) {
             console.error("❌ Error sending frame:", error)
-            isProcessingRef.current = false  // Reset nếu lỗi
+            isProcessingRef.current = false
           }
 
-          // Continue loop - CHỈ KHI chưa dừng
           if (!shouldStopRef.current) {
             animationFrameRef.current = requestAnimationFrame(sendFrame)
           }
         }
 
       } catch (error) {
-        console.error("❌ Failed to initialize face tracking:", error)
+        console.error("❌ Failed to initialize:", error)
         alert("Không thể khởi động camera. Vui lòng cho phép quyền truy cập camera.")
       }
     }
@@ -408,26 +353,20 @@ export function VideoCallRoom() {
     initFaceTracking()
 
     return () => {
-      console.log("🧹 Cleaning up face tracking...")
+      console.log("🧹 Cleanup...")
       
-      // DỪNG LOOP NGAY LẬP TỨC
       shouldStopRef.current = true
       isProcessingRef.current = false
+      noFaceFramesRef.current = 0
       
-      // ❌ RESET TẮT - Không reset riggedFace
-      // setRiggedFace(null)
-      // console.log("✅ Reset riggedFace to null - VRM will return to idle")
-      
-      // Cancel animation frame
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
       }
       
-      // Close WebSocket NGAY
       if (wsRef.current) {
         try {
-          wsRef.current.close(1000, "Camera stopped")  // Code 1000 = normal closure
+          wsRef.current.close(1000, "Camera stopped")
           console.log("✅ WebSocket closed")
         } catch (error) {
           console.warn("⚠️ Error closing WebSocket:", error)
@@ -435,12 +374,11 @@ export function VideoCallRoom() {
         wsRef.current = null
       }
       
-      // Stop camera stream
       if (streamRef.current) {
         try {
           streamRef.current.getTracks().forEach(track => {
             track.stop()
-            console.log("✅ Camera track stopped")
+            console.log("✅ Camera stopped")
           })
         } catch (error) {
           console.warn("⚠️ Error stopping camera:", error)
@@ -448,20 +386,12 @@ export function VideoCallRoom() {
         streamRef.current = null
       }
       
-      // Stop video element
       if (videoElement.current && videoElement.current.srcObject) {
         videoElement.current.srcObject = null
       }
       
-      // Reset refs
       shouldStopRef.current = false
       latencyRef.current = 0
-      
-      // Cancel animation frame (double check)
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-        animationFrameRef.current = null
-      }
       
       isProcessingRef.current = false
       console.log("✅ Cleanup complete")
@@ -469,12 +399,11 @@ export function VideoCallRoom() {
   }, [isVideoOn, setVideoElement, setRiggedFace, drawWFLWLandmarks])
 
   const toggleVideo = () => {
-    console.log("Toggle Video - Bật/tắt camera")
+    console.log("Toggle Video")
     const newState = !isVideoOn
     
-    // Nếu tắt camera, reset riggedFace về null để trở về idle
     if (!newState) {
-      console.log("📹 Camera turning OFF - Resetting to idle pose")
+      console.log("📹 Camera OFF → Reset to idle")
       setRiggedFace(null)
     }
     
@@ -490,7 +419,6 @@ export function VideoCallRoom() {
     console.log("Toggle Call")
     setIsInCall(!isInCall)
     if (isInCall) {
-      // End call - turn off camera
       setIsVideoOn(false)
     }
   }
@@ -506,10 +434,8 @@ export function VideoCallRoom() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-            {/* 3D Avatar Canvas - Always visible when in call */}
             {isInCall && (
-              <Canvas shadows
-                camera={{ position: [0, 0, 1.0], fov: 30 }}>
+              <Canvas shadows camera={{ position: [0, 0, 1.0], fov: 30 }}>
                 <color attach="background" args={["#333"]} />
                 <fog attach="fog" args={["#333", 10, 20]} />
                 <Suspense fallback={null}>
@@ -527,7 +453,6 @@ export function VideoCallRoom() {
               </div>
             )}
 
-            {/* Camera Feed Widget - Small preview in corner */}
             {isVideoOn && isInCall && (
               <div className="absolute bottom-4 right-4 w-[240px] h-[180px] rounded-xl overflow-hidden border-2 border-primary/50 shadow-xl z-10 bg-gray-900">
                 <video
@@ -542,9 +467,17 @@ export function VideoCallRoom() {
                   ref={drawCanvas}
                   className="absolute z-10 w-full h-full top-0 left-0 pointer-events-none"
                 />
-                {/* FPS Counter */}
                 <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
                   {fpsDisplay} FPS
+                </div>
+                <div className={`absolute top-2 right-2 px-2 py-1 rounded text-xs z-20 ${
+                  noFaceFramesRef.current === 0
+                    ? 'bg-green-500/80 text-white' 
+                    : noFaceFramesRef.current < IDLE_THRESHOLD
+                    ? 'bg-yellow-500/80 text-white'
+                    : 'bg-red-500/80 text-white'
+                }`}>
+                  {noFaceFramesRef.current === 0 ? '👤' : noFaceFramesRef.current < IDLE_THRESHOLD ? '⚠️' : '😴'}
                 </div>
               </div>
             )}
@@ -556,7 +489,6 @@ export function VideoCallRoom() {
             </div>
           </div>
 
-          {/* Các nút bấm */}
           <div className="flex items-center justify-center gap-4">
             <Button
               variant={isVideoOn ? "default" : "outline"}

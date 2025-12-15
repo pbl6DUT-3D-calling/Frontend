@@ -16,7 +16,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import VRMVideoPublisher from '@/components/video-call/VRMVideoPublisher';
 import PreviewMedia from '@/components/video-call/PreviewMedia';
 import { ModelProvider } from '@/context/modelContext';
-import { VRMProvider } from '@/context/vrmContext'
+import { VRMProvider } from '@/context/vrmContext';
+
+// ⬅️ CHỈ IMPORT THÊM (không thay thế code cũ)
+import MediaControlBar from '@/components/video-call/controls/MediaControlBar';
+import LayoutSwitcher from '@/components/video-call/controls/LayoutSwitcher';
 
 export default function Page() {
   const params = useSearchParams();
@@ -88,11 +92,11 @@ export default function Page() {
     router.push('/room');
   }, [router]);
 
+  // ===== PREVIEW SCREEN (GIỮ NGUYÊN) =====
   if (!shouldRender || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="w-full max-w-6xl">
-          {/* Back Button */}
           <button
             onClick={() => router.push('/')}
             className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
@@ -103,11 +107,9 @@ export default function Page() {
             <span className="font-medium">Back to Home</span>
           </button>
 
-          {/* Main Card - Unified */}
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               
-              {/* Left Column: Form */}
               <div className="p-8 lg:p-10 space-y-6 lg:border-r border-gray-200">
                 <div className="text-center lg:text-left">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">Join Video Call</h1>
@@ -153,7 +155,6 @@ export default function Page() {
                   </button>
                 </form>
 
-                {/* Info Section */}
                 <div className="pt-4 border-t border-gray-200">
                   <p className="text-xs text-gray-500 text-center lg:text-left">
                     Make sure your camera and microphone are ready before joining
@@ -161,7 +162,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* Right Column: Preview */}
               <div className="p-8 lg:p-10 bg-gray-50">
                 <div className="mb-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Device Preview</h2>
@@ -170,7 +170,6 @@ export default function Page() {
                 
                 <PreviewMedia onSettingsChange={setPreviewSettings} />
                 
-                {/* Preview Settings Summary */}
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
                   <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -189,7 +188,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Having trouble? Check your browser permissions for camera and microphone access.
@@ -200,9 +198,10 @@ export default function Page() {
     );
   }
 
+  // ===== ROOM SCREEN (GIỮ NGUYÊN LOGIC CŨ) =====
   return (
     <ModelProvider>
-      <VRMProvider> {/* ⬅️ THÊM wrap VRMProvider */}
+      <VRMProvider>
         <LiveKitRoom
           video={previewSettings.isCameraOn} 
           audio={previewSettings.isMicOn}
@@ -213,44 +212,53 @@ export default function Page() {
           onDisconnected={handleDisconnected}
           connect={true}
         >
+          {/* ===== VIDEO GRID (GIỮ NGUYÊN) ===== */}
           <MyVideoConference />
+          
+          {/* ===== AUDIO (GIỮ NGUYÊN) ===== */}
           <RoomAudioRenderer />
           
+          {/* ===== VRM PUBLISHER (GIỮ NGUYÊN) ===== */}
           <AvatarControlsAndPublisher 
             is3DEnabled={is3DEnabled} 
             setIs3DEnabled={setIs3DEnabled} 
           />
+
+          {/* ⬅️ THÊM MỚI: Layout Switcher (không ảnh hưởng video) */}
+          <LayoutSwitcher />
+
+          {/* ⬅️ THÊM MỚI: Media Controls + Chat (thay thế ControlBar cũ) */}
+          <MediaControlBar />
         </LiveKitRoom>
-      </VRMProvider> {/* ⬅️ ĐÓNG VRMProvider */}
+      </VRMProvider>
     </ModelProvider>
   );
 }
 
+// ===== GIỮ NGUYÊN COMPONENT CŨ =====
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const trackReplacedRef = useRef(false);
-  const originalWebcamStreamRef = useRef<MediaStream | null>(null); // ===== THÊM: Lưu stream gốc =====
+  const originalWebcamStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const cameraPub = localParticipant.getTrackPublication(Track.Source.Camera);
     
     if (cameraPub) {
-    const isEnabled = !cameraPub.isMuted;
-    setIsCameraOn(isEnabled);
-    console.log('Camera track found, enabled:', isEnabled);
-  }
+      const isEnabled = !cameraPub.isMuted;
+      setIsCameraOn(isEnabled);
+      console.log('Camera track found, enabled:', isEnabled);
+    }
 
-  if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
-    return;
-  }
+    if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
+      return;
+    }
 
-    // ===== QUAN TRỌNG: Lưu stream webcam GỐC vào ref =====
     const originalStream = cameraPub.track.mediaStream;
     originalWebcamStreamRef.current = originalStream;
     
-    // ===== Clone stream để giữ nguyên stream gốc =====
     const clonedStream = originalStream.clone();
     setWebcamStream(clonedStream);
     
@@ -299,7 +307,6 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
       localParticipant.off('trackMuted', handleTrackMuted);
       localParticipant.off('trackUnmuted', handleTrackUnmuted);
       
-      // ===== Cleanup cloned stream =====
       if (clonedStream) {
         clonedStream.getTracks().forEach(track => track.stop());
       }
@@ -313,32 +320,49 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
 
   return (
     <>
+      {/* ===== VRM PUBLISHER (HIDDEN) ===== */}
       <div style={{ display: 'none' }}>
         <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
       </div>
 
-      <div className="lk-control-bar">
-        <ControlBar controls={{ camera: true, microphone: true, screenShare: true, leave: true }} />
+      {/* ===== 3D TOGGLE BUTTON (GIỮ NGUYÊN VỊ TRÍ CŨ) ===== */}
+      <div 
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 100,
+        }}
+      >
         <button 
-          className="lk-button" 
           onClick={handle3DToggle}
           style={{
             backgroundColor: is3DEnabled ? '#10b981' : '#6b7280',
             color: 'white',
-            padding: '10px 20px',
-            borderRadius: '8px',
+            padding: '12px 24px',
+            borderRadius: '12px',
             border: 'none',
             cursor: 'pointer',
             fontWeight: 'bold',
+            fontSize: '16px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
           }}
         >
-          {is3DEnabled ? 'VTuber Mode' : 'Camera Mode'}
+          {is3DEnabled ? '🎭 VTuber Mode' : '📹 Camera Mode'}
         </button>
       </div>
     </>
   );
 }
 
+// ===== GIỮ NGUYÊN VIDEO GRID =====
 function MyVideoConference() {
   const tracks = useTracks(
     [
