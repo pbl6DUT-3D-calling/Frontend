@@ -21,6 +21,8 @@ import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
 import { useModel } from "@/context/modelContext"
+import { BackgroundSelector, BACKGROUNDS, type BackgroundOption } from "./background-selector"
+import { FilterSelector, type FilterType } from "./filter-selector"
 
 export function VideoCallRoom() {
   const { selectedModelUrl } = useModel() // 🔄 Get selected model from context
@@ -36,6 +38,10 @@ export function VideoCallRoom() {
   const [isAudioOn, setIsAudioOn] = useState(true)
   const [isInCall, setIsInCall] = useState(true)
   const [fpsDisplay, setFpsDisplay] = useState(0)
+  
+  // 🎨 Background and Filter states
+  const [background, setBackground] = useState<BackgroundOption>(BACKGROUNDS[0])
+  const [filter, setFilter] = useState<FilterType>("none")
   
   // Refs cho WebSocket face tracking (WFLW - head + mouth)
   const videoElement = useRef<HTMLVideoElement>(null)
@@ -505,15 +511,27 @@ export function VideoCallRoom() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+          <div 
+            className="aspect-video bg-muted rounded-lg overflow-hidden relative"
+            style={{ 
+              background: background.type === "image" 
+                ? `url(${background.value}) center/cover no-repeat` 
+                : background.value 
+            }}
+          >
             {/* 3D Avatar Canvas - Always visible when in call */}
             {isInCall && (
               <Canvas shadows
-                camera={{ position: [0, 0, 1.0], fov: 30 }}>
-                <color attach="background" args={["#333"]} />
-                <fog attach="fog" args={["#333", 10, 20]} />
+                camera={{ position: [0, 0, 1.0], fov: 30 }}
+                style={{ background: 'transparent' }}
+              >
                 <Suspense fallback={null}>
-                  <Experience key={`videocall-${selectedModelUrl}`} modelUrl={selectedModelUrl} />
+                  <Experience 
+                    key={`videocall-${selectedModelUrl}`}
+                    modelUrl={selectedModelUrl}
+                    sceneBackground="transparent"
+                    filter={filter}
+                  />
                 </Suspense>
               </Canvas>
             )}
@@ -575,6 +593,18 @@ export function VideoCallRoom() {
             >
               {isAudioOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
             </Button>
+            
+            {/* 🎨 Background Selector */}
+            <BackgroundSelector
+              currentBackground={background}
+              onBackgroundChange={setBackground}
+            />
+            
+            {/* ✨ Filter Selector */}
+            <FilterSelector
+              currentFilter={filter}
+              onFilterChange={setFilter}
+            />
             
             <Button
               variant={isInCall ? "destructive" : "default"}

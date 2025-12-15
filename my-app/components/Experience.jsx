@@ -1,60 +1,62 @@
-import { CameraControls, Environment, Gltf } from "@react-three/drei";
-import { Bloom, EffectComposer } from "@react-three/postprocessing";
-// import { useControls } from "leva";
+import { CameraControls, Environment } from "@react-three/drei";
+import { Bloom, EffectComposer, HueSaturation, BrightnessContrast } from "@react-three/postprocessing";
 import { useRef } from "react";
 import { VRMAvatar } from "./VRMAvatar";
 
-export const Experience = ({ modelUrl }) => {
+export const Experience = ({ modelUrl, sceneBackground = "#333", filter = "none" }) => {
   const controls = useRef();
-
-  // ❌ COMMENTED OUT: Use modelUrl prop directly from context, no Leva controls
-  // const { avatar: levaAvatar } = useControls("VRM", {
-  //   avatar: {
-  //     value: "7667029464206216702.vrm",
-  //     options: [
-  //       "firefly.vrm",
-  //       "262410318834873893.vrm",
-  //       "3859814441197244330.vrm",
-  //       "3636451243928341470.vrm",
-  //       "8087383217573817818.vrm",
-  //       "7667029464206216702.vrm",
-  //       "1460281130622983526.vrm"
-  //     ],
-  //   },
-  // });
-  
-  // ✅ Use modelUrl directly from ModelContext (via video-call-room.tsx)
-  const avatar = modelUrl;
 
   return (
     <>
+      {/* Scene background - only apply if not transparent */}
+      {sceneBackground !== "transparent" && (
+        <color attach="background" args={[sceneBackground]} />
+      )}
+      
       <CameraControls
         ref={controls}
         enabledRotate={false}
         enabledPan={false}
-
         minDistance={1}
         maxDistance={1.2}
         minPolarAngle={Math.PI / 2}
         maxPolarAngle={Math.PI / 2}
-        // minDistance={1}
-        // maxDistance={10}
       />
       <Environment preset="sunset" />
       <directionalLight intensity={2} position={[10, 10, 5]} />
       <directionalLight intensity={1} position={[-10, 10, 5]} />
       <group position-y={-1.25}>
-        <VRMAvatar key={`videocall-avatar-${avatar}`} avatar={avatar} />
-        {/* <Gltf
-          src="models/sound-stage-final.glb"
-          position-z={-1.4}
-          position-x={-0.5}
-          scale={0.65}
-        /> */}
+        <VRMAvatar key={`videocall-avatar-${modelUrl}`} avatar={modelUrl} autoPlayIdle={true} />
       </group>
-      <EffectComposer>
-        <Bloom mipmapBlur intensity={0.7} />
-      </EffectComposer>
+
+      {/* Post-processing Effects */}
+      {filter !== "none" && (
+        <EffectComposer>
+          {filter === "bloom" && (
+            <Bloom 
+              intensity={1.5} 
+              luminanceThreshold={0.3} 
+              luminanceSmoothing={0.9}
+              mipmapBlur
+            />
+          )}
+          {filter === "vintage" && (
+            <>
+              <HueSaturation saturation={-0.3} />
+              <BrightnessContrast brightness={0.05} contrast={0.1} />
+            </>
+          )}
+          {filter === "bw" && (
+            <HueSaturation saturation={-1} />
+          )}
+          {filter === "sepia" && (
+            <>
+              <HueSaturation hue={0.1} saturation={-0.5} />
+              <BrightnessContrast brightness={0.1} contrast={0.05} />
+            </>
+          )}
+        </EffectComposer>
+      )}
     </>
   );
 };
