@@ -1,41 +1,49 @@
 'use client';
 
 import React from 'react';
-import { ChatMessage as ChatMessageType } from '@/hooks/useLiveKitChat';
-import { useRoomContext } from '@livekit/components-react';
+import { useLocalParticipant } from '@livekit/components-react';
+import type { ChatMessage as ChatMessageType } from '../hooks/useChat';
 
 interface ChatMessageProps {
   message: ChatMessageType;
 }
 
 export default function ChatMessage({ message }: ChatMessageProps) {
-  const room = useRoomContext();
-  const isOwnMessage = room?.localParticipant.sid === message.participantId;
+  const { localParticipant } = useLocalParticipant();
+  const isOwnMessage = message.participantId === localParticipant.sid;
 
-  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
 
   return (
-    <div className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-      {/* Name & Time */}
-      <div className="flex items-center gap-2 mb-1 px-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          {isOwnMessage ? 'You' : message.participantName}
-        </span>
-        <span className="text-xs text-muted-foreground">{time}</span>
-      </div>
-
-      {/* Message Bubble */}
-      <div
-        className={`max-w-[80%] px-3 py-2 rounded-2xl ${
-          isOwnMessage
-            ? 'bg-primary text-primary-foreground rounded-br-sm'
-            : 'bg-secondary text-secondary-foreground rounded-bl-sm'
-        }`}
+    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+      <div 
+        className={`
+          max-w-[70%] rounded-lg px-3 py-2
+          ${isOwnMessage 
+            ? 'bg-blue-600 text-white' 
+            : 'bg-gray-800 text-gray-100'
+          }
+        `}
       >
+        {!isOwnMessage && (
+          <p className="text-xs font-semibold mb-1 text-gray-300">
+            {message.participantName}
+          </p>
+        )}
         <p className="text-sm break-words">{message.message}</p>
+        <p 
+          className={`text-xs mt-1 ${
+            isOwnMessage ? 'text-blue-200' : 'text-gray-400'
+          }`}
+        >
+          {formatTime(message.timestamp)}
+        </p>
       </div>
     </div>
   );

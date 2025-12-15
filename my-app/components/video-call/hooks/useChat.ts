@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useDataChannel, useRoomContext } from '@livekit/components-react';
-import { DataPacket_Kind } from 'livekit-client';
+import type { ReceivedDataMessage } from '@livekit/components-core';
 
 export interface ChatMessage {
   id: string;
@@ -19,20 +19,45 @@ export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   // 📥 Nhận tin nhắn từ DataChannel
-  const onMessage = useCallback((payload: Uint8Array, participant: any) => {
-    const decoder = new TextDecoder();
-    const message = decoder.decode(payload);
-    
-    const chatMessage: ChatMessage = {
-      id: `${participant.sid}-${Date.now()}`,
-      participantName: participant.name || participant.identity,
-      participantId: participant.sid,
-      message,
-      timestamp: Date.now(),
-    };
+  const onMessage = useCallback((msg: ReceivedDataMessage) => {
+    try {
+      const decoder = new TextDecoder();
+      let message: string;
 
-    setMessages((prev) => [...prev, chatMessage]);
-    console.log('💬 Received message:', chatMessage);
+      const payload = msg.payload;
+      const participant = msg.from;
+
+      // Kiểm tra kiểu dữ liệu và convert
+      if (ArrayBuffer.isView(payload)) {
+        // TypedArray (Uint8Array, etc.)
+        message = decoder.decode(payload as Uint8Array);
+      } else if (payload instanceof ArrayBuffer) {
+        message = decoder.decode(new Uint8Array(payload));
+      } else if (typeof payload === 'string') {
+        message = payload;
+      } else {
+        // Fallback: cố gắng convert
+        console.warn('Unknown payload type:', typeof payload, payload);
+        const uint8Array = new Uint8Array(
+          Array.from(Object.values(payload as any))
+        );
+        message = decoder.decode(uint8Array);
+      }
+      
+      const chatMessage: ChatMessage = {
+        id: `${participant?.sid || 'unknown'}-${Date.now()}`,
+        participantName: participant?.name || participant?.identity || 'Unknown',
+        participantId: participant?.sid || 'unknown',
+        message,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, chatMessage]);
+      console.log('💬 Received message:', chatMessage);
+    } catch (error) {
+      console.error('❌ Error decoding message:', error);
+      console.log('Message object:', msg);
+    }
   }, []);
 
   // 🔌 Subscribe to DataChannel
