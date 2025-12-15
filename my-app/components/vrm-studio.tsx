@@ -468,7 +468,7 @@ export function VRMStudio() {
       {!showModal && currentVrmUrl && (
         <div 
           ref={containerRef}
-          className="h-[50vh] w-full bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl border-2 border-purple-200 shadow-lg overflow-hidden relative"
+          className="h-[60vh] w-full bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl border-2 border-purple-200 shadow-lg overflow-hidden relative"
         >
           {isLoading ? (
             <div className="flex items-center justify-center h-full">

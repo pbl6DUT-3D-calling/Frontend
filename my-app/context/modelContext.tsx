@@ -11,7 +11,7 @@ interface ModelContextType {
 const ModelContext = createContext<ModelContextType | undefined>(undefined)
 
 export function ModelProvider({ children }: { children: ReactNode }) {
-  const [selectedModelUrl, setSelectedModelUrl] = useState<string>("7667029464206216702.vrm")
+  const [selectedModelUrl, setSelectedModelUrl] = useState<string>("/1.vrm")
   const [selectedModelName, setSelectedModelName] = useState<string>("Default Avatar")
 
   const setSelectedModel = (url: string, name: string) => {

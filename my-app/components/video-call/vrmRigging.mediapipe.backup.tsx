@@ -8,6 +8,34 @@ const lerp = (start: number, end: number, amount: number): number => {
   return start + (end - start) * amount;
 };
 
+class SmoothingFilter {
+  private history: number[] = [];
+  private maxHistory = 3; // ✅ GIẢM: 7 → 3 (faster response)
+
+  smooth(value: number): number {
+    this.history.push(value);
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+    return this.history.reduce((a, b) => a + b, 0) / this.history.length;
+  }
+
+  reset() {
+    this.history = [];
+  }
+}
+
+// ✅ XÓA EMA filters (quá chậm) - Chỉ dùng SmoothingFilter
+const pitchFilter = new SmoothingFilter();
+const yawFilter = new SmoothingFilter();
+const rollFilter = new SmoothingFilter();
+
+const mouthAaFilter = new SmoothingFilter();
+const mouthOhFilter = new SmoothingFilter();
+const mouthOuFilter = new SmoothingFilter();
+
+const blinkLeftFilter = new SmoothingFilter();
+const blinkRightFilter = new SmoothingFilter();
 export const animateVRMFace = (
   vrm: VRM,
   results: FaceMeshResults,

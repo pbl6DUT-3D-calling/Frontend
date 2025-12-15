@@ -15,6 +15,17 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import VRMVideoPublisher from '@/components/video-call/VRMVideoPublisher';
 import PreviewMedia from '@/components/video-call/PreviewMedia';
+import { ModelProvider } from '@/context/modelContext';
+import { VRMProvider } from '@/context/vrmContext';
+import RecordingIndicator from '@/components/video-call/controls/RecordingIndicator';
+import MediaControlBar from '@/components/video-call/controls/MediaControlBar';
+import LayoutSwitcher from '@/components/video-call/controls/LayoutSwitcher';
+import ResizablePanel from '@/components/video-call/chat/ResizablePanel';
+import ChatMessage from '@/components/video-call/chat/ChatMessage';
+import ChatInput from '@/components/video-call/chat/ChatInput';
+import { useChat } from '@/components/video-call/hooks/useChat';
+import { Button } from '@/components/ui/button';
+import { X } from 'lucide-react';
 
 export default function Page() {
   const params = useSearchParams();
@@ -25,6 +36,8 @@ export default function Page() {
   const [token, setToken] = useState<string>('');
   const [shouldRender, setShouldRender] = useState(false);
   const [is3DEnabled, setIs3DEnabled] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatPanelWidth, setChatPanelWidth] = useState(320);
   const [previewSettings, setPreviewSettings] = useState({
     isCameraOn: true,
     isMicOn: true
@@ -42,7 +55,7 @@ export default function Page() {
       return null;
     } catch (e) {
       console.error('Error fetching token:', e);
-      return null;
+      throw e;
     }
   }, []);
 
@@ -86,11 +99,11 @@ export default function Page() {
     router.push('/room');
   }, [router]);
 
+  // ===== PREVIEW SCREEN =====
   if (!shouldRender || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
         <div className="w-full max-w-6xl">
-          {/* Back Button */}
           <button
             onClick={() => router.push('/')}
             className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
@@ -101,11 +114,9 @@ export default function Page() {
             <span className="font-medium">Back to Home</span>
           </button>
 
-          {/* Main Card - Unified */}
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2">
               
-              {/* Left Column: Form */}
               <div className="p-8 lg:p-10 space-y-6 lg:border-r border-gray-200">
                 <div className="text-center lg:text-left">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">Join Video Call</h1>
@@ -151,7 +162,6 @@ export default function Page() {
                   </button>
                 </form>
 
-                {/* Info Section */}
                 <div className="pt-4 border-t border-gray-200">
                   <p className="text-xs text-gray-500 text-center lg:text-left">
                     Make sure your camera and microphone are ready before joining
@@ -159,7 +169,6 @@ export default function Page() {
                 </div>
               </div>
 
-              {/* Right Column: Preview */}
               <div className="p-8 lg:p-10 bg-gray-50">
                 <div className="mb-6">
                   <h2 className="text-xl font-bold text-gray-900 mb-2">Device Preview</h2>
@@ -168,7 +177,6 @@ export default function Page() {
                 
                 <PreviewMedia onSettingsChange={setPreviewSettings} />
                 
-                {/* Preview Settings Summary */}
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-lg">
                   <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,7 +195,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Having trouble? Check your browser permissions for camera and microphone access.
@@ -198,75 +205,128 @@ export default function Page() {
     );
   }
 
+  // ===== ROOM SCREEN WITH FLEXIBLE LAYOUT =====
   return (
-    <LiveKitRoom
-      video={previewSettings.isCameraOn} 
-      audio={previewSettings.isMicOn}
-      token={token}
-      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      data-lk-theme="default"
-      style={{ height: '100vh' }}
-      onDisconnected={handleDisconnected}
-      connect={true}
-    >
-      <MyVideoConference />
-      <RoomAudioRenderer />
-      
-      <AvatarControlsAndPublisher 
-        is3DEnabled={is3DEnabled} 
-        setIs3DEnabled={setIs3DEnabled} 
-      />
-    </LiveKitRoom>
+    <ModelProvider>
+      <VRMProvider>
+        <div className="relative h-screen flex flex-col bg-gray-900 overflow-hidden">
+          <LiveKitRoom
+            video={previewSettings.isCameraOn} 
+            audio={previewSettings.isMicOn}
+            token={token}
+            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+            data-lk-theme="default"
+            onDisconnected={handleDisconnected}
+            connect={true}
+            className="flex-1 flex flex-col"
+          >
+            {/* Main Content Wrapper */}
+            <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 88px)' }}>
+              
+              {/* Video Grid Area - Co dãn theo chat width */}
+              <div 
+                className="flex-1 flex flex-col transition-all duration-300 h-full"
+                style={{ 
+                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0'
+                }}
+              >
+                {/* Video Grid - Chiếm toàn bộ không gian còn lại */}
+                <div className="flex-1 relative overflow-hidden">
+                  <MyVideoConference />
+                  
+                  {/* ✅ THÊM Recording Indicator - TOP CENTER */}
+                  <RecordingIndicator />
+                  
+                  {/* Layout Switcher - Top Right của video area */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <LayoutSwitcher />
+                  </div>
+
+                  {/* 3D Toggle Button - Top Left */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <button 
+                      onClick={() => setIs3DEnabled(!is3DEnabled)}
+                      className={`
+                        px-4 py-2 rounded-lg font-semibold text-sm
+                        transition-all duration-200 shadow-lg
+                        ${is3DEnabled 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-white'
+                        }
+                      `}
+                    >
+                      {is3DEnabled ? '🎭 VTuber Mode' : '📹 Camera Mode'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chat Panel - Resizable */}
+              <ChatPanelWithResize 
+                isOpen={isChatOpen} 
+                onClose={() => setIsChatOpen(false)}
+                onWidthChange={setChatPanelWidth}
+              />
+            </div>
+
+            {/* Footer Controls - Fixed tại đáy */}
+            <MediaControlBar 
+              isChatOpen={isChatOpen}
+              onChatToggle={() => setIsChatOpen(!isChatOpen)}
+            />
+
+            {/* Audio Renderer */}
+            <RoomAudioRenderer />
+            
+            {/* VRM Publisher (Hidden) */}
+            <AvatarControlsAndPublisher 
+              is3DEnabled={is3DEnabled} 
+              setIs3DEnabled={setIs3DEnabled} 
+            />
+          </LiveKitRoom>
+        </div>
+      </VRMProvider>
+    </ModelProvider>
   );
 }
 
+// ===== AVATAR CONTROLS =====
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const trackReplacedRef = useRef(false);
-  const originalWebcamStreamRef = useRef<MediaStream | null>(null); // ===== THÊM: Lưu stream gốc =====
+  const originalWebcamStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const cameraPub = localParticipant.getTrackPublication(Track.Source.Camera);
     
     if (cameraPub) {
-    const isEnabled = !cameraPub.isMuted;
-    setIsCameraOn(isEnabled);
-    console.log('Camera track found, enabled:', isEnabled);
-  }
+      const isEnabled = !cameraPub.isMuted;
+      setIsCameraOn(isEnabled);
+    }
 
-  if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
-    return;
-  }
-
-    // ===== QUAN TRỌNG: Lưu stream webcam GỐC vào ref =====
-    const originalStream = cameraPub.track.mediaStream;
-    originalWebcamStreamRef.current = originalStream;
-    
-    // ===== Clone stream để giữ nguyên stream gốc =====
-    const clonedStream = originalStream.clone();
-    setWebcamStream(clonedStream);
-    
-    console.log('Saved original webcam stream:', {
-      videoTracks: originalStream.getVideoTracks().length,
-      audioTracks: originalStream.getAudioTracks().length
-    });
-
-    const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
-    if (!canvas) {
-      console.warn("VRM Canvas not found, skipping track replacement.");
+    if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
       return;
     }
 
-    console.log("Found canvas, capturing stream and replacing track...");
+    const originalStream = cameraPub.track.mediaStream;
+    originalWebcamStreamRef.current = originalStream;
+    
+    const clonedStream = originalStream.clone();
+    setWebcamStream(clonedStream);
+
+    const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
+    if (!canvas) {
+      return;
+    }
+
     const canvasStream = canvas.captureStream(30);
     const canvasTrack = canvasStream.getVideoTracks()[0];
 
     if (canvasTrack && cameraPub.track instanceof LocalVideoTrack) {
       cameraPub.track.replaceTrack(canvasTrack).then(() => {
         trackReplacedRef.current = true;
-        console.log("Successfully replaced webcam track with canvas track.");
       }).catch(e => {
         console.error("Failed to replace track:", e);
       });
@@ -274,14 +334,12 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
 
     const handleTrackMuted = (pub: any) => {
       if (pub.source === Track.Source.Camera) {
-        console.log('Camera track muted/disabled');
         setIsCameraOn(false);
       }
     };
 
     const handleTrackUnmuted = (pub: any) => {
       if (pub.source === Track.Source.Camera) {
-        console.log('Camera track unmuted/enabled');
         setIsCameraOn(true);
       }
     };
@@ -293,46 +351,20 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
       localParticipant.off('trackMuted', handleTrackMuted);
       localParticipant.off('trackUnmuted', handleTrackUnmuted);
       
-      // ===== Cleanup cloned stream =====
       if (clonedStream) {
         clonedStream.getTracks().forEach(track => track.stop());
       }
     };
   }, [localParticipant, localParticipant.getTrackPublication(Track.Source.Camera)?.track]);
 
-  const handle3DToggle = () => {
-    setIs3DEnabled(!is3DEnabled);
-    console.log('Toggling 3D mode:', !is3DEnabled);
-  };
-
   return (
-    <>
-      <div style={{ display: 'none' }}>
-        <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
-      </div>
-
-      <div className="lk-control-bar">
-        <ControlBar controls={{ camera: true, microphone: true, screenShare: true, leave: true }} />
-        <button 
-          className="lk-button" 
-          onClick={handle3DToggle}
-          style={{
-            backgroundColor: is3DEnabled ? '#10b981' : '#6b7280',
-            color: 'white',
-            padding: '10px 20px',
-            borderRadius: '8px',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-          }}
-        >
-          {is3DEnabled ? 'VTuber Mode' : 'Camera Mode'}
-        </button>
-      </div>
-    </>
+    <div style={{ display: 'none' }}>
+      <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
+    </div>
   );
 }
 
+// ===== VIDEO GRID =====
 function MyVideoConference() {
   const tracks = useTracks(
     [
@@ -343,8 +375,73 @@ function MyVideoConference() {
   );
   
   return (
-    <GridLayout tracks={tracks} style={{ height: 'calc(100vh - 80px)' }}>
+    <GridLayout tracks={tracks} style={{ height: '100%' }}>
       <ParticipantTile />
     </GridLayout>
+  );
+}
+
+// ===== CHAT PANEL WITH RESIZE =====
+function ChatPanelWithResize({ 
+  isOpen, 
+  onClose, 
+  onWidthChange 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  onWidthChange: (width: number) => void;
+}) {
+  const { messages, sendMessage } = useChat();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(320);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    onWidthChange(width);
+  }, [width, onWidthChange]);
+
+  return (
+    <ResizablePanel 
+      isOpen={isOpen}
+      defaultWidth={320}
+      minWidth={280}
+      maxWidth={640}
+      onWidthChange={setWidth}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-800">
+        <h3 className="font-semibold text-lg text-white">Chat</h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="hover:bg-gray-800 text-gray-400 hover:text-white"
+        >
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Messages List */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 ? (
+          <div className="text-center text-gray-500 text-sm mt-8">
+            No messages yet. Start the conversation!
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-gray-800">
+        <ChatInput onSend={sendMessage} />
+      </div>
+    </ResizablePanel>
   );
 }
