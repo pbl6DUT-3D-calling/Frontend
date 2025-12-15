@@ -18,9 +18,9 @@ import PreviewMedia from '@/components/video-call/PreviewMedia';
 import { ModelProvider } from '@/context/modelContext';
 import { VRMProvider } from '@/context/vrmContext';
 
-// ⬅️ CHỈ IMPORT THÊM (không thay thế code cũ)
 import MediaControlBar from '@/components/video-call/controls/MediaControlBar';
 import LayoutSwitcher from '@/components/video-call/controls/LayoutSwitcher';
+import ChatPanel from '@/components/video-call/chat/ChatPanel';
 
 export default function Page() {
   const params = useSearchParams();
@@ -31,6 +31,7 @@ export default function Page() {
   const [token, setToken] = useState<string>('');
   const [shouldRender, setShouldRender] = useState(false);
   const [is3DEnabled, setIs3DEnabled] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [previewSettings, setPreviewSettings] = useState({
     isCameraOn: true,
     isMicOn: true
@@ -92,7 +93,7 @@ export default function Page() {
     router.push('/room');
   }, [router]);
 
-  // ===== PREVIEW SCREEN (GIỮ NGUYÊN) =====
+  // ===== PREVIEW SCREEN =====
   if (!shouldRender || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -198,44 +199,88 @@ export default function Page() {
     );
   }
 
-  // ===== ROOM SCREEN (GIỮ NGUYÊN LOGIC CŨ) =====
+  // ===== ROOM SCREEN WITH FLEXIBLE LAYOUT =====
   return (
     <ModelProvider>
       <VRMProvider>
-        <LiveKitRoom
-          video={previewSettings.isCameraOn} 
-          audio={previewSettings.isMicOn}
-          token={token}
-          serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-          data-lk-theme="default"
-          style={{ height: '100vh' }}
-          onDisconnected={handleDisconnected}
-          connect={true}
-        >
-          {/* ===== VIDEO GRID (GIỮ NGUYÊN) ===== */}
-          <MyVideoConference />
-          
-          {/* ===== AUDIO (GIỮ NGUYÊN) ===== */}
-          <RoomAudioRenderer />
-          
-          {/* ===== VRM PUBLISHER (GIỮ NGUYÊN) ===== */}
-          <AvatarControlsAndPublisher 
-            is3DEnabled={is3DEnabled} 
-            setIs3DEnabled={setIs3DEnabled} 
-          />
+        <div className="relative h-screen flex flex-col bg-gray-900 overflow-hidden">
+          <LiveKitRoom
+            video={previewSettings.isCameraOn} 
+            audio={previewSettings.isMicOn}
+            token={token}
+            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+            data-lk-theme="default"
+            onDisconnected={handleDisconnected}
+            connect={true}
+            className="flex-1 flex flex-col"
+          >
+            {/* Main Content Wrapper */}
+            <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 88px)' }}>
+              
+              {/* Video Grid Area - Co dãn theo chat */}
+              <div 
+                className="flex-1 flex flex-col transition-all duration-300 h-full"
+                style={{ 
+                  marginRight: isChatOpen ? '320px' : '0'
+                }}
+              >
+                {/* Video Grid - Chiếm toàn bộ không gian còn lại */}
+                <div className="flex-1 relative overflow-hidden">
+                  <MyVideoConference />
+                  
+                  {/* Layout Switcher - Top Right của video area */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <LayoutSwitcher />
+                  </div>
 
-          {/* ⬅️ THÊM MỚI: Layout Switcher (không ảnh hưởng video) */}
-          <LayoutSwitcher />
+                  {/* 3D Toggle Button - Top Left */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <button 
+                      onClick={() => setIs3DEnabled(!is3DEnabled)}
+                      className={`
+                        px-4 py-2 rounded-lg font-semibold text-sm
+                        transition-all duration-200 shadow-lg
+                        ${is3DEnabled 
+                          ? 'bg-green-500 hover:bg-green-600 text-white' 
+                          : 'bg-gray-700 hover:bg-gray-600 text-white'
+                        }
+                      `}
+                    >
+                      {is3DEnabled ? '🎭 VTuber Mode' : '📹 Camera Mode'}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-          {/* ⬅️ THÊM MỚI: Media Controls + Chat (thay thế ControlBar cũ) */}
-          <MediaControlBar />
-        </LiveKitRoom>
+              {/* Chat Panel - Fixed Right Side, Full Height */}
+              <ChatPanel 
+                isOpen={isChatOpen} 
+                onClose={() => setIsChatOpen(false)} 
+              />
+            </div>
+
+            {/* Footer Controls - Fixed tại đáy */}
+            <MediaControlBar 
+              isChatOpen={isChatOpen}
+              onChatToggle={() => setIsChatOpen(!isChatOpen)}
+            />
+
+            {/* Audio Renderer */}
+            <RoomAudioRenderer />
+            
+            {/* VRM Publisher (Hidden) */}
+            <AvatarControlsAndPublisher 
+              is3DEnabled={is3DEnabled} 
+              setIs3DEnabled={setIs3DEnabled} 
+            />
+          </LiveKitRoom>
+        </div>
       </VRMProvider>
     </ModelProvider>
   );
 }
 
-// ===== GIỮ NGUYÊN COMPONENT CŨ =====
+// ===== AVATAR CONTROLS (GIỮ NGUYÊN) =====
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
@@ -249,7 +294,6 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
     if (cameraPub) {
       const isEnabled = !cameraPub.isMuted;
       setIsCameraOn(isEnabled);
-      console.log('Camera track found, enabled:', isEnabled);
     }
 
     if (!cameraPub || !cameraPub.track || !cameraPub.track.mediaStream || trackReplacedRef.current) {
@@ -261,26 +305,18 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
     
     const clonedStream = originalStream.clone();
     setWebcamStream(clonedStream);
-    
-    console.log('Saved original webcam stream:', {
-      videoTracks: originalStream.getVideoTracks().length,
-      audioTracks: originalStream.getAudioTracks().length
-    });
 
     const canvas = document.getElementById('vrm-canvas') as HTMLCanvasElement;
     if (!canvas) {
-      console.warn("VRM Canvas not found, skipping track replacement.");
       return;
     }
 
-    console.log("Found canvas, capturing stream and replacing track...");
     const canvasStream = canvas.captureStream(30);
     const canvasTrack = canvasStream.getVideoTracks()[0];
 
     if (canvasTrack && cameraPub.track instanceof LocalVideoTrack) {
       cameraPub.track.replaceTrack(canvasTrack).then(() => {
         trackReplacedRef.current = true;
-        console.log("Successfully replaced webcam track with canvas track.");
       }).catch(e => {
         console.error("Failed to replace track:", e);
       });
@@ -288,14 +324,12 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
 
     const handleTrackMuted = (pub: any) => {
       if (pub.source === Track.Source.Camera) {
-        console.log('Camera track muted/disabled');
         setIsCameraOn(false);
       }
     };
 
     const handleTrackUnmuted = (pub: any) => {
       if (pub.source === Track.Source.Camera) {
-        console.log('Camera track unmuted/enabled');
         setIsCameraOn(true);
       }
     };
@@ -313,56 +347,14 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
     };
   }, [localParticipant, localParticipant.getTrackPublication(Track.Source.Camera)?.track]);
 
-  const handle3DToggle = () => {
-    setIs3DEnabled(!is3DEnabled);
-    console.log('Toggling 3D mode:', !is3DEnabled);
-  };
-
   return (
-    <>
-      {/* ===== VRM PUBLISHER (HIDDEN) ===== */}
-      <div style={{ display: 'none' }}>
-        <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
-      </div>
-
-      {/* ===== 3D TOGGLE BUTTON (GIỮ NGUYÊN VỊ TRÍ CŨ) ===== */}
-      <div 
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          zIndex: 100,
-        }}
-      >
-        <button 
-          onClick={handle3DToggle}
-          style={{
-            backgroundColor: is3DEnabled ? '#10b981' : '#6b7280',
-            color: 'white',
-            padding: '12px 24px',
-            borderRadius: '12px',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            fontSize: '16px',
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.05)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-        >
-          {is3DEnabled ? '🎭 VTuber Mode' : '📹 Camera Mode'}
-        </button>
-      </div>
-    </>
+    <div style={{ display: 'none' }}>
+      <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
+    </div>
   );
 }
 
-// ===== GIỮ NGUYÊN VIDEO GRID =====
+// ===== VIDEO GRID =====
 function MyVideoConference() {
   const tracks = useTracks(
     [
@@ -373,7 +365,7 @@ function MyVideoConference() {
   );
   
   return (
-    <GridLayout tracks={tracks} style={{ height: 'calc(100vh - 80px)' }}>
+    <GridLayout tracks={tracks} style={{ height: '100%' }}>
       <ParticipantTile />
     </GridLayout>
   );

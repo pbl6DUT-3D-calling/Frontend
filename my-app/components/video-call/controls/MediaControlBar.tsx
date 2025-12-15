@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Video, VideoOff, Mic, MicOff, PhoneOff, MessageSquare, MoreVertical } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff, MessageSquare, MonitorUp, MonitorX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLocalParticipant } from '@livekit/components-react';
-// import ScreenShareButton from './ScreenShareButton';
+import { Track } from 'livekit-client';
 import MoreActionsMenu from './MoreActionsMenu';
-import ChatPanel from '../chat/ChatPanel';
 
-export default function MediaControlBar() {
+interface MediaControlBarProps {
+  isChatOpen: boolean;
+  onChatToggle: () => void;
+}
+
+export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaControlBarProps) {
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const toggleCamera = () => {
     localParticipant.setCameraEnabled(!isCameraEnabled);
@@ -21,77 +24,109 @@ export default function MediaControlBar() {
     localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
   };
 
+  const toggleScreenShare = async () => {
+    try {
+      if (isScreenSharing) {
+        await localParticipant.setScreenShareEnabled(false);
+        setIsScreenSharing(false);
+      } else {
+        await localParticipant.setScreenShareEnabled(true);
+        setIsScreenSharing(true);
+      }
+    } catch (error) {
+      console.error('Error toggling screen share:', error);
+      alert('Failed to share screen. Please check permissions.');
+    }
+  };
+
   const handleEndCall = () => {
-    if (confirm('End call?')) {
+    if (confirm('Are you sure you want to end the call?')) {
+      localParticipant.disconnect();
       window.location.href = '/';
     }
   };
 
   return (
-    <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <div className="flex items-center gap-3 bg-card/95 backdrop-blur-lg border border-border rounded-2xl px-6 py-4 shadow-2xl">
-          {/* Camera Toggle */}
-          <Button
-            variant={isCameraEnabled ? 'default' : 'destructive'}
-            size="icon"
-            onClick={toggleCamera}
-            className="rounded-full w-12 h-12"
-          >
-            {isCameraEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
-          </Button>
+    <div className="w-full bg-gray-900/95 backdrop-blur-lg border-t border-gray-800 flex-shrink-0" style={{ height: '88px' }}>
+      <div className="w-full h-full max-w-screen-xl mx-auto px-6 flex items-center">
+        <div className="flex items-center justify-between w-full">
+          
+          {/* Left: Room Info */}
+          <div className="flex-1">
+            <p className="text-sm text-gray-400">
+              {localParticipant.name || localParticipant.identity}
+            </p>
+          </div>
 
-          {/* Microphone Toggle */}
-          <Button
-            variant={isMicrophoneEnabled ? 'default' : 'destructive'}
-            size="icon"
-            onClick={toggleMicrophone}
-            className="rounded-full w-12 h-12"
-          >
-            {isMicrophoneEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-          </Button>
+          {/* Center: Main Controls */}
+          <div className="flex items-center gap-3">
+            {/* Microphone */}
+            <Button
+              variant={isMicrophoneEnabled ? 'default' : 'destructive'}
+              size="icon"
+              onClick={toggleMicrophone}
+              className="rounded-full w-12 h-12"
+              title={isMicrophoneEnabled ? 'Mute' : 'Unmute'}
+            >
+              {isMicrophoneEnabled ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+            </Button>
 
-          {/* Screen Share */}
-          {/* <ScreenShareButton /> */}
+            {/* Camera */}
+            <Button
+              variant={isCameraEnabled ? 'default' : 'destructive'}
+              size="icon"
+              onClick={toggleCamera}
+              className="rounded-full w-12 h-12"
+              title={isCameraEnabled ? 'Stop Video' : 'Start Video'}
+            >
+              {isCameraEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+            </Button>
 
-          {/* Chat Toggle */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              setIsChatOpen(!isChatOpen);
-              setUnreadCount(0);
-            }}
-            className="rounded-full w-12 h-12 relative"
-          >
-            <MessageSquare className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {unreadCount}
-              </span>
-            )}
-          </Button>
+            {/* Screen Share */}
+            <Button
+              variant={isScreenSharing ? 'default' : 'outline'}
+              size="icon"
+              onClick={toggleScreenShare}
+              className="rounded-full w-12 h-12"
+              title={isScreenSharing ? 'Stop Sharing' : 'Share Screen'}
+            >
+              {isScreenSharing ? <MonitorX className="w-5 h-5" /> : <MonitorUp className="w-5 h-5" />}
+            </Button>
 
-          {/* More Actions */}
-          <MoreActionsMenu />
+            {/* Divider */}
+            <div className="w-px h-8 bg-gray-700 mx-2" />
 
-          {/* Divider */}
-          <div className="w-px h-8 bg-border mx-2" />
+            {/* End Call */}
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={handleEndCall}
+              className="rounded-full w-12 h-12"
+              title="End Call"
+            >
+              <PhoneOff className="w-5 h-5" />
+            </Button>
+          </div>
 
-          {/* End Call */}
-          <Button
-            variant="destructive"
-            size="icon"
-            onClick={handleEndCall}
-            className="rounded-full w-12 h-12"
-          >
-            <PhoneOff className="w-5 h-5" />
-          </Button>
+          {/* Right: Chat & More */}
+          <div className="flex-1 flex items-center justify-end gap-3">
+            {/* Chat */}
+            <Button
+              variant={isChatOpen ? 'default' : 'outline'}
+              size="icon"
+              onClick={onChatToggle}
+              className="rounded-full w-10 h-10"
+              title="Chat"
+            >
+              <MessageSquare className="w-5 h-5" />
+            </Button>
+
+            {/* More Actions */}
+            <MoreActionsMenu />
+          </div>
+
         </div>
       </div>
-
-      {/* Chat Panel */}
-      <ChatPanel isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
-    </>
+    </div>
   );
 }
