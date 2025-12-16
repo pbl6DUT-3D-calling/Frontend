@@ -20,6 +20,7 @@ export const VRMAvatar = ({
   externalExpressions = {},
   hideControls = false,
   disableFaceTracking = false,
+  instanceContext = "default",
   ...props 
 }) => {;
   
@@ -31,8 +32,13 @@ export const VRMAvatar = ({
       ? avatar 
       : `models/${avatar}`;
   
+  // ✅ Add unique query param to disable useGLTF cache per instance
+  // Use & if URL already has query params, otherwise use ?
+  const separator = modelPath.includes('?') ? '&' : '?';
+  const uniqueModelPath = `${modelPath}${separator}instance=${instanceContext}`;
+  
   const { scene, userData } = useGLTF(
-    modelPath,
+    uniqueModelPath,
     undefined,
     undefined,
     (loader) => {
@@ -135,6 +141,12 @@ export const VRMAvatar = ({
 
   useEffect(() => {
     const vrm = userData.vrm;
+    console.log(`🎭 VRMAvatar initialized for [${instanceContext}]:`, {
+      modelPath,
+      vrmObject: vrm,
+      sceneObject: scene,
+      instanceId: Date.now()
+    });
     // console.log("VRM loaded:", vrm);
     // console.log("VRM humanoid:", userData.vrm.expressionManager);
     // calling these functions greatly improves the performance

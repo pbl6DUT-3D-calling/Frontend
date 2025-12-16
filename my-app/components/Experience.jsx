@@ -26,7 +26,12 @@ export const Experience = ({ modelUrl, sceneBackground = "#333", filter = "none"
       <directionalLight intensity={2} position={[10, 10, 5]} />
       <directionalLight intensity={1} position={[-10, 10, 5]} />
       <group position-y={-1.25}>
-        <VRMAvatar key={`videocall-avatar-${modelUrl}`} avatar={modelUrl} autoPlayIdle={true} />
+        <VRMAvatar 
+          key={`videocall-${modelUrl}-${Date.now()}`}
+          avatar={modelUrl} 
+          autoPlayIdle={true}
+          instanceContext="videocall"
+        />
       </group>
 
       {/* Post-processing Effects */}

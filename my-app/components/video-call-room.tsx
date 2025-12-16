@@ -21,7 +21,7 @@ import { Experience } from "./Experience"
 import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
-import { useModel } from "@/context/modelContext"
+import { useModelState } from "@/context/modelContext" // ✅ Dùng state context để READ
 import { BackgroundSelector, BACKGROUNDS, type BackgroundOption } from "./background-selector"
 import { FilterSelector, type FilterType } from "./filter-selector"
 
@@ -48,10 +48,13 @@ function RecordingController({
 }
 
 export function VideoCallRoom() {
-  const { selectedModelUrl } = useModel()
+  const { selectedModelUrl } = useModelState() // ✅ CHỈ đọc state
+  
+  // ✅ Log NGAY trong body để xem component có re-render không
+  console.log('🔄 VideoCallRoom RENDER with selectedModelUrl:', selectedModelUrl);
   
   useEffect(() => {
-    console.log('🎥 Video Call Room Model URL:', selectedModelUrl);
+    console.log('🎥 Video Call Room Model URL changed to:', selectedModelUrl);
   }, [selectedModelUrl]);
   
   const [isVideoOn, setIsVideoOn] = useState(false)
