@@ -596,7 +596,6 @@ export function VideoCallRoom() {
                 <fog attach="fog" args={["#333", 10, 20]} />
                 <Suspense fallback={null}>
                   <Experience 
-                    key={`videocall-${selectedModelUrl}`}
                     modelUrl={selectedModelUrl}
                     sceneBackground="transparent"
                     filter={filter}
@@ -638,7 +637,10 @@ export function VideoCallRoom() {
                   autoPlay
                   playsInline
                   muted
-                  style={{ display: 'block' }}
+                  style={{ 
+                    display: 'block',
+                    transform: 'scaleX(-1)'
+                  }}
                 />
                 <canvas
                   ref={drawCanvas}

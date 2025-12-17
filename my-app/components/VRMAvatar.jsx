@@ -140,6 +140,21 @@ export const VRMAvatar = ({
   const initialLocalQuats = useRef({});
 
   useEffect(() => {
+    const mountTime = Date.now();
+    console.log(`🎭 [${instanceContext}] VRMAvatar MOUNTED at`, mountTime);
+    
+    return () => {
+      const unmountTime = Date.now();
+      const lifetime = unmountTime - mountTime;
+      console.warn(`💀 [${instanceContext}] VRMAvatar UNMOUNTED after ${lifetime}ms`);
+    };
+  }, []); // Empty deps = mount/unmount only
+
+  useEffect(() => {
+    console.log(`🔄 [${instanceContext}] Model URL changed:`, modelPath.substring(0, 50) + '...');
+  }, [modelPath, instanceContext]);
+
+  useEffect(() => {
     const vrm = userData.vrm;
     console.log(`🎭 VRMAvatar initialized for [${instanceContext}]:`, {
       modelPath,
