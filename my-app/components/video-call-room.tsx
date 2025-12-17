@@ -591,6 +591,7 @@ export function VideoCallRoom() {
                 shadows 
                 camera={{ position: [0, 0, 1.0], fov: 30 }}
                 gl={{ preserveDrawingBuffer: true }}
+                style={{ transform: 'scaleX(-1)' }}
               >
                 <color attach="background" args={["#333"]} />
                 <fog attach="fog" args={["#333", 10, 20]} />
@@ -645,6 +646,7 @@ export function VideoCallRoom() {
                 <canvas
                   ref={drawCanvas}
                   className="absolute z-10 w-full h-full top-0 left-0 pointer-events-none"
+                  style={{ transform: 'scaleX(-1)' }}
                 />
                 <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
                   {fpsDisplay} FPS
