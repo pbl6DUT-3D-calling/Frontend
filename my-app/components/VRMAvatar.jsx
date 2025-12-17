@@ -469,7 +469,54 @@ export const VRMAvatar = ({
   useFrame((_, delta) => {
     if (!userData.vrm) {
       return;
+      if (mixer) {
+    if (isCameraActive) {
+      // ❌ Camera ON → KHÔNG update mixer (pause idle)
+      // Để face tracking hoặc frozen pose
+    } else {
+      // ✅ Camera OFF → Update mixer (idle animation chạy)
+      mixer.update(delta);
     }
+  }
+
+  // === FACE TRACKING (nếu có data) ===
+  if (riggedFaceFromContext?.head) {
+    const neckBone = userData.vrm.humanoid.getNormalizedBoneNode("neck");
+    if (neckBone) {
+      tmpEuler.set(
+        riggedFaceFromContext.head.x * 1.0,
+        riggedFaceFromContext.head.y * 0.7, 
+        riggedFaceFromContext.head.z * 0.7
+      );
+      tmpQuat.setFromEuler(tmpEuler);
+      
+      const base = initialLocalQuats.current["neck"];
+      if (base) {
+        const target = base.clone().multiply(tmpQuat);
+        neckBone.quaternion.slerp(target, delta * 10);
+      } else {
+        neckBone.quaternion.slerp(tmpQuat, delta * 10);
+      }
+    }
+  }
+    }
+
+    if (!window._debugRiggedFace) {
+    window._debugRiggedFace = { lastLog: 0 };
+  }
+  
+  const now = Date.now();
+  if (now - window._debugRiggedFace.lastLog > 3000) {
+    console.log('🔍 === FACE TRACKING STATE ===');
+    console.log('riggedFaceFromContext:', riggedFaceFromContext);
+    console.log('hasFaceTracking:', !!(riggedFaceFromContext?.head));
+    console.log('head data:', riggedFaceFromContext?.head);
+    console.log('isCameraActive:', isCameraActive);
+    console.log('mixer running:', !!mixer);
+    console.log('==============================');
+    window._debugRiggedFace.lastLog = now;
+  };
+
 
     // 🐛 DEBUG: Track 4 nguyên nhân gây giật
     if (!window._debugJitter) {

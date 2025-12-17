@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@livekit/components-react": "^2.9.15",
+    "@livekit/components-react": "^2.9.17",
     "@livekit/components-styles": "^1.2.0",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
@@ -63,6 +63,7 @@
     "jsonwebtoken": "^9.0.2",
     "kalidokit": "^1.1.5",
     "leva": "^0.10.1",
+    "livekit-client": "^2.16.1",
     "livekit-server-sdk": "^2.14.0",
     "lucide-react": "^0.544.0",
     "next": "^15.5.3",
@@ -79,7 +80,8 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.180.0",
     "vaul": "^1.1.2",
-    "zod": "3.25.67"
+    "zod": "3.25.67",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
