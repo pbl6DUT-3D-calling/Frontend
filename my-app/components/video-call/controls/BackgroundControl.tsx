@@ -54,24 +54,6 @@ export const BACKGROUNDS: BackgroundOption[] = [
     value: '#059669' 
   },
   { 
-    id: 'gradient1', 
-    name: 'Sunset', 
-    type: 'gradient', 
-    value: 'linear-gradient(180deg, #ff6b6b 0%, #4ecdc4 100%)' 
-  },
-  { 
-    id: 'gradient2', 
-    name: 'Space', 
-    type: 'gradient', 
-    value: 'linear-gradient(180deg, #0f0c29 0%, #302b63 50%, #24243e 100%)' 
-  },
-  { 
-    id: 'gradient3', 
-    name: 'Dawn', 
-    type: 'gradient', 
-    value: 'linear-gradient(180deg, #FF512F 0%, #DD2476 100%)' 
-  },
-  { 
     id: 'office', 
     name: 'Office', 
     type: 'image', 

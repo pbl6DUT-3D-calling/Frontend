@@ -250,8 +250,8 @@ export default function Page() {
             connect={true}
             className="flex-1 flex flex-col"
             style={{ 
-              background: 'transparent', // ✅ THÊM
-              backgroundColor: 'transparent' // ✅ THÊM
+              background: 'transparent', 
+              backgroundColor: 'transparent'  
             }}
           >
 
@@ -263,11 +263,19 @@ export default function Page() {
               <div 
                 className="flex-1 flex flex-col transition-all duration-300 h-full"
                 style={{ 
-                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0'
+                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0',
+                  background: 'transparent', 
+                  backgroundColor: 'transparent' 
                 }}
               >
                 {/* Video Grid - Chiếm toàn bộ không gian còn lại */}
-                <div className="flex-1 relative overflow-hidden">
+                <div 
+                  className="flex-1 relative overflow-hidden"
+                  style={{
+                    background: 'transparent',
+                    backgroundColor: 'transparent' 
+                  }}
+                >
                   <MyVideoConference />
                   
                   {/* ✅ THÊM Recording Indicator - TOP CENTER */}
@@ -468,7 +476,12 @@ function MyVideoConference() {
         backgroundColor: 'transparent' 
       }}
     >
-      <ParticipantTile />
+      <ParticipantTile 
+        style={{
+          background: 'transparent',
+          backgroundColor: 'transparent'
+        }}
+      />
     </GridLayout>
   );
 }

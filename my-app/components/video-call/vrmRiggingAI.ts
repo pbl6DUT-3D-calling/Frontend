@@ -251,7 +251,7 @@ const rigFaceAI = (
 
   const pitchRad = (-smoothPitch * Math.PI) / 180;
   const yawRad = (smoothYaw * Math.PI) / 180;
-  const rollRad = (smoothRoll * Math.PI) / 180;
+  const rollRad = (-smoothRoll * Math.PI) / 180;
 
   rigRotation(
     'neck',

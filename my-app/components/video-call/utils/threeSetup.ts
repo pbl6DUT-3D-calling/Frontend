@@ -59,7 +59,6 @@ export function adjustCameraForVRM(
   camera: THREE.PerspectiveCamera,
   vrmScene: THREE.Object3D
 ): void {
-  console.log('🎯 Adjusting camera for VRM (proportional)...');
   
   vrmScene.updateMatrixWorld(true);
   
@@ -102,7 +101,7 @@ export function adjustCameraForVRM(
   distance = distance * 0.75;
   
   // ⬅️ Tính horizontal offset theo TỈ LỆ % (nếu model lệch)
-  const horizontalOffset = size.x * VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT;
+  const horizontalOffset = size.x * VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT + 0.1;
   
   console.log('📐 Camera calculation (proportional):', {
     fov: camera.fov,
