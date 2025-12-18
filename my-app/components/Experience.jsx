@@ -1,10 +1,26 @@
 import { CameraControls, Environment } from "@react-three/drei";
 import { Bloom, EffectComposer, HueSaturation, BrightnessContrast } from "@react-three/postprocessing";
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { VRMAvatar } from "./VRMAvatar";
 
 export const Experience = ({ modelUrl, sceneBackground = "#333", filter = "none" }) => {
   const controls = useRef();
+
+  // ✅ STABLE KEY: Chỉ extract base URL (bỏ query params)
+  const stableModelKey = useMemo(() => {
+    if (!modelUrl) return 'default';
+    try {
+      const url = new URL(modelUrl);
+      return url.pathname; // Chỉ lấy path, bỏ query params
+    } catch {
+      return modelUrl; // Fallback nếu không phải URL
+    }
+  }, [modelUrl]);
+
+  console.log('🎬 Experience render:', {
+    modelUrl: modelUrl?.substring(0, 50) + '...',
+    stableKey: stableModelKey
+  });
 
   return (
     <>
@@ -26,7 +42,13 @@ export const Experience = ({ modelUrl, sceneBackground = "#333", filter = "none"
       <directionalLight intensity={2} position={[10, 10, 5]} />
       <directionalLight intensity={1} position={[-10, 10, 5]} />
       <group position-y={-1.25}>
-        <VRMAvatar key={`videocall-avatar-${modelUrl}`} avatar={modelUrl} autoPlayIdle={true} />
+        {/* ✅ KEY STABLE: Chỉ thay đổi khi URL path thay đổi */}
+        <VRMAvatar 
+          key={`videocall-${stableModelKey}`}
+          avatar={modelUrl} 
+          autoPlayIdle={true}
+          instanceContext="videocall"
+        />
       </group>
 
       {/* Post-processing Effects */}

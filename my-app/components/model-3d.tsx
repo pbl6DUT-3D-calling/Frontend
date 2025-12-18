@@ -6,10 +6,18 @@ import { Suspense, useEffect, useState, useRef } from "react"
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" // Sửa: Đã xóa import tĩnh
 import * as THREE from "three"
 
-// VRM Model Component - Optimized
-function VRMModel({ url }: { url: string }) {
+// VRM Model Component - Optimized with unique instance per canvas
+function VRMModel({ url, instanceKey }: { url: string; instanceKey?: string }) {
   const [vrm, setVrm] = useState<any | null>(null)
   const ref = useRef<THREE.Group>(null)
+
+  // Log để debug instance
+  useEffect(() => {
+    console.log('🎭 VRMModel instance created:', { instanceKey, url: url.substring(0, 50) });
+    return () => {
+      console.log('💀 VRMModel instance destroyed:', { instanceKey });
+    };
+  }, [instanceKey, url]);
 
   useEffect(() => {
     if (!url) return;
@@ -109,8 +117,8 @@ function VRMModel({ url }: { url: string }) {
   return vrm ? <primitive object={vrm.scene} ref={ref} /> : null
 }
 
-// Scene Component
-function Scene({ vrmUrl }: { vrmUrl: string }) {
+// Scene Component with unique key per URL to force re-mount
+function Scene({ vrmUrl, sceneKey }: { vrmUrl: string; sceneKey?: string }) {
   return (
     <>
       <Environment preset="studio" />
@@ -118,7 +126,7 @@ function Scene({ vrmUrl }: { vrmUrl: string }) {
       <pointLight position={[10, 10, 10]} />
       <directionalLight position={[0, 5, 5]} intensity={0.5} />
       <Suspense fallback={null}>
-        <VRMModel url={vrmUrl} />
+        <VRMModel key={`vrm-${vrmUrl}-${sceneKey}`} url={vrmUrl} instanceKey={sceneKey} />
       </Suspense>
       {/* OrbitControls với target nhìn vào đầu nhân vật */}
       <OrbitControls 
@@ -137,11 +145,13 @@ function Scene({ vrmUrl }: { vrmUrl: string }) {
 export function Model3D({ 
   vrmUrl,
   height = "h-64",
-  showLoading = false 
+  showLoading = false,
+  instanceId = "preview" // Unique ID cho mỗi instance (preview/videocall)
 }: { 
   vrmUrl: string | null,
   height?: string,
-  showLoading?: boolean
+  showLoading?: boolean,
+  instanceId?: string
 }) {
   const [isMounted, setIsMounted] = useState(false)
 
@@ -186,9 +196,11 @@ export function Model3D({
         </div>
       ) : (
         <Canvas
+          key={`canvas-${instanceId}`}
           camera={{ position: [0, 0, 2.5], fov: 50 }}
           onCreated={({ gl }) => {
             gl.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+            console.log('🖼️ Canvas created for instance:', instanceId);
           }}
           gl={{ 
             preserveDrawingBuffer: true,
@@ -198,7 +210,7 @@ export function Model3D({
           dpr={[1, 2]} // Limit pixel ratio
           shadows
         >
-          <Scene vrmUrl={vrmUrl} />
+          <Scene vrmUrl={vrmUrl} sceneKey={instanceId} />
         </Canvas>
       )}
     </div>
