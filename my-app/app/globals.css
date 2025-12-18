@@ -164,7 +164,6 @@
   object-fit: contain !important; /* Giữ tỷ lệ, không bóp méo */
   width: 100% !important;
   height: 100% !important;
-  background: #000; /* Nền đen cho phần trống */
 }
 
 /* Optional: Nếu muốn cover (fill toàn bộ, có thể cắt phần thừa) */
@@ -177,10 +176,30 @@
 
 /* ===== Fix layout grid để tránh bóp méo ===== */
 .lk-grid-layout {
-  background: #000;
+  background: transparent !important;
 }
 
 .lk-participant-tile {
   overflow: hidden;
-  background: #000;
+  background: transparent !important;
+}
+
+.lk-focus-layout,
+.lk-carousel-layout {
+  background: transparent !important;
+}
+
+/* ✅ THÊM: Override LiveKitRoom default background */
+.lk-room-container {
+  background: transparent !important;
+}
+
+/* ✅ THÊM: Override tất cả children của LiveKitRoom */
+[data-lk-theme] {
+  background: transparent !important;
+}
+
+/* ✅ THÊM: Override video track backgrounds */
+.lk-video-track {
+  background: transparent !important;
 }

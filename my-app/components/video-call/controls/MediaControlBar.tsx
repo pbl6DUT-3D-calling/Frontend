@@ -7,13 +7,24 @@ import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import MoreActionsMenu from './MoreActionsMenu';
 import RecordingButton from './RecordingButton';
+import BackgroundControl, { BACKGROUNDS, type BackgroundOption } from './BackgroundControl';
 
 interface MediaControlBarProps {
   isChatOpen: boolean;
   onChatToggle: () => void;
+  currentBackground: BackgroundOption; 
+  onBackgroundChange: (bg: BackgroundOption) => void;
+  is3DEnabled: boolean; 
 }
 
-export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaControlBarProps) {
+export default function MediaControlBar({ 
+  isChatOpen, 
+  onChatToggle,
+  currentBackground,
+  onBackgroundChange, 
+  is3DEnabled,
+}: MediaControlBarProps) {
+
   const { isCameraEnabled, isMicrophoneEnabled, localParticipant } = useLocalParticipant();
   const room = useRoomContext();
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -111,6 +122,26 @@ export default function MediaControlBar({ isChatOpen, onChatToggle }: MediaContr
             <RecordingButton />
 
             {/* Divider */}
+            <div className="w-px h-8 bg-gray-700 mx-2" />
+
+            <div className="relative">
+              <BackgroundControl
+                currentBackground={currentBackground}
+                onBackgroundChange={onBackgroundChange}
+                disabled={!is3DEnabled}
+              />
+              
+              {!is3DEnabled && (
+                <div 
+                  className="absolute inset-0 bg-gray-900/50 rounded-full cursor-not-allowed flex items-center justify-center"
+                  title="Enable 3D mode to change background"
+                >
+                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                    Enable 3D mode first
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="w-px h-8 bg-gray-700 mx-2" />
 
             {/* End Call */}

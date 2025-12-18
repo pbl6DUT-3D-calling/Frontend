@@ -27,6 +27,7 @@ import ChatInput from '@/components/video-call/chat/ChatInput';
 import { useChat } from '@/components/video-call/hooks/useChat';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { BACKGROUNDS, type BackgroundOption } from '@/components/video-call/controls/BackgroundControl';
 
 export default function Page() {
   const params = useSearchParams();
@@ -43,6 +44,7 @@ export default function Page() {
     isCameraOn: true,
     isMicOn: true
   });
+  const [background, setBackground] = useState<BackgroundOption>(BACKGROUNDS[0]);   
 
   const getToken = useCallback(async (roomName: string, userName: string) => {
     try {
@@ -231,7 +233,13 @@ export default function Page() {
   return (
     <ModelProvider>
       <VRMProvider>
-        <div className="relative h-screen flex flex-col bg-gray-900 overflow-hidden">
+        <div 
+          className="relative h-screen flex flex-col overflow-hidden"
+          style={{
+            // ✅ CHỈ DÙNG `background` (không dùng backgroundColor)
+            background:'#1f2937'
+          }}
+        >
           <LiveKitRoom
             video={previewSettings.isCameraOn} 
             audio={previewSettings.isMicOn}
@@ -241,6 +249,10 @@ export default function Page() {
             onDisconnected={handleDisconnected}
             connect={true}
             className="flex-1 flex flex-col"
+            style={{ 
+              background: 'transparent', // ✅ THÊM
+              backgroundColor: 'transparent' // ✅ THÊM
+            }}
           >
 
             <RoomCleanupManager roomName={room} />
@@ -297,6 +309,9 @@ export default function Page() {
             <MediaControlBar 
               isChatOpen={isChatOpen}
               onChatToggle={() => setIsChatOpen(!isChatOpen)}
+              currentBackground={background} 
+              onBackgroundChange={setBackground}
+              is3DEnabled={is3DEnabled} 
             />
 
             {/* Audio Renderer */}
@@ -306,6 +321,7 @@ export default function Page() {
             <AvatarControlsAndPublisher 
               is3DEnabled={is3DEnabled} 
               setIs3DEnabled={setIs3DEnabled} 
+              background={is3DEnabled ? background : BACKGROUNDS[0]} 
             />
           </LiveKitRoom>
         </div>
@@ -348,7 +364,15 @@ function RoomCleanupManager({ roomName }: { roomName: string }) {
   return null;
 }
 // ===== AVATAR CONTROLS =====
-function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
+function AvatarControlsAndPublisher({ 
+  is3DEnabled, 
+  setIs3DEnabled,
+  background 
+}: { 
+  is3DEnabled: boolean;
+  setIs3DEnabled: (v: boolean) => void;
+  background: BackgroundOption;
+}) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -416,7 +440,11 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
 
   return (
     <div style={{ display: 'none' }}>
-      <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
+      <VRMVideoPublisher 
+        enabled={is3DEnabled} 
+        webcamStream={webcamStream}
+        background={background} 
+      />
     </div>
   );
 }
@@ -432,7 +460,14 @@ function MyVideoConference() {
   );
   
   return (
-    <GridLayout tracks={tracks} style={{ height: '100%' }}>
+    <GridLayout 
+      tracks={tracks} 
+      style={{ 
+        height: '100%',
+        background: 'transparent', 
+        backgroundColor: 'transparent' 
+      }}
+    >
       <ParticipantTile />
     </GridLayout>
   );

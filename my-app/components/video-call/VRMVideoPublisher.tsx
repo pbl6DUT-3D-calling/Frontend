@@ -34,8 +34,18 @@ const getVideoCallModelPath = (url: string): string => {
   return `/models/${cleanPath}`;
 };
 
+interface ExtendedVRMVideoPublisherProps extends VRMVideoPublisherProps {
+  background?: {
+    type: 'color' | 'gradient' | 'image';
+    value: string;
+  };
+}
 
-const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisherProps) => {
+const VRMVideoPublisherComponent = ({ 
+  enabled, 
+  webcamStream,
+  background 
+}: ExtendedVRMVideoPublisherProps) => {
   const webglCanvasRef = useRef<HTMLCanvasElement>(null);
   const output2DCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -49,6 +59,52 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
   // Setup Three.js scene
   const { scene, renderer, camera } = useThreeScene(webglCanvasRef);
 
+
+  useEffect(() => {
+    if (!scene || !background) return;
+
+    if (background.type === 'color') {
+      scene.background = new THREE.Color(background.value);
+    } else if (background.type === 'gradient') {
+      // Gradient: Tạo texture từ canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d')!;
+      
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      
+      // Parse gradient CSS
+      const gradientMatch = background.value.match(/linear-gradient\((\d+)deg,\s*(.+)\)/);
+      if (gradientMatch) {
+        const colors = gradientMatch[2].split(/,(?![^()]*\))/).map(s => s.trim());
+        colors.forEach((color, i) => {
+          const stop = i / (colors.length - 1);
+          gradient.addColorStop(stop, color);
+        });
+      }
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      scene.background = texture;
+    } else if (background.type === 'image') {
+      // Image: Load texture
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load(background.value, (texture) => {
+        scene.background = texture;
+      });
+    }
+
+    return () => {
+      if (scene.background instanceof THREE.Texture) {
+        scene.background.dispose();
+      }
+      scene.background = null;
+    };
+  }, [scene, background]);
+  
   // Setup webcam
   const { isCameraReady } = useWebcamStream(videoRef, webcamStream);
 
