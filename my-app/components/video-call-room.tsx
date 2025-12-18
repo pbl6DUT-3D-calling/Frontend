@@ -598,7 +598,8 @@ export function VideoCallRoom() {
               <Canvas 
                 shadows 
                 camera={{ position: [0, 0, 1.0], fov: 30 }}
-                gl={{ preserveDrawingBuffer: true, alpha: true }}
+                gl={{ preserveDrawingBuffer: true }}
+                style={{ transform: 'scaleX(-1)' }}
               >
                 {/* Three.js scene transparent để nhìn thấy CSS background */}
                 <Suspense fallback={null}>
@@ -652,6 +653,7 @@ export function VideoCallRoom() {
                 <canvas
                   ref={drawCanvas}
                   className="absolute z-10 w-full h-full top-0 left-0 pointer-events-none"
+                  style={{ transform: 'scaleX(-1)' }}
                 />
                 <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
                   {fpsDisplay} FPS
@@ -734,42 +736,6 @@ export function VideoCallRoom() {
             >
               {isInCall ? <PhoneOff className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Participants
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary-foreground">You</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">You</p>
-                <p className="text-xs text-muted-foreground">Host</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isVideoOn && (
-                  <span className="text-xs text-green-500 flex items-center gap-1">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    Camera On
-                  </span>
-                )}
-                {isRecording && (
-                  <span className="text-xs text-red-500 flex items-center gap-1">
-                    <Circle className="w-2 h-2 fill-current animate-pulse" />
-                    Recording
-                  </span>
-                )}
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

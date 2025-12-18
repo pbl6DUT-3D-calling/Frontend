@@ -8,6 +8,7 @@ import {
   useTracks,
   LiveKitRoom,
   useLocalParticipant,
+  useRemoteParticipants,
 } from '@livekit/components-react';
 import { LocalVideoTrack, Track } from 'livekit-client';
 import '@livekit/components-styles';
@@ -92,12 +93,33 @@ export default function Page() {
     }
   };
 
-  const handleDisconnected = useCallback(() => {
-    console.log('Disconnected from room');
+  const handleDisconnected = useCallback(async () => {
+    console.log('🚪 Disconnected from room');
+    try {
+      console.log(`🗑️ Deleting room on disconnect: ${room}`);
+      
+      const response = await fetch('/api/rooms/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName: room }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        localStorage.setItem('room-deleted', JSON.stringify({
+          roomName: room,
+          timestamp: Date.now()
+        }));
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error);
+    }
+    
     setShouldRender(false);
     setToken('');
     router.push('/room');
-  }, [router]);
+  }, [room, router]);
 
   // ===== PREVIEW SCREEN =====
   if (!shouldRender || !token) {
@@ -220,6 +242,8 @@ export default function Page() {
             connect={true}
             className="flex-1 flex flex-col"
           >
+
+            <RoomCleanupManager roomName={room} />
             {/* Main Content Wrapper */}
             <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 88px)' }}>
               
@@ -290,6 +314,39 @@ export default function Page() {
   );
 }
 
+
+function RoomCleanupManager({ roomName }: { roomName: string }) {
+  const remoteParticipants = useRemoteParticipants();
+  const hasDeletedRef = useRef(false);
+
+  useEffect(() => {
+    hasDeletedRef.current = false;
+  }, [roomName]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (remoteParticipants.length === 0 && !hasDeletedRef.current) {
+        hasDeletedRef.current = true;
+
+        console.log('⚠️ Tab closing - deleting room via beacon');
+        navigator.sendBeacon(
+          '/api/rooms/delete',
+          new Blob([JSON.stringify({ roomName })], { type: 'application/json' })
+        );
+
+        localStorage.setItem('room-deleted', JSON.stringify({
+          roomName,
+          timestamp: Date.now()
+        }));
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [roomName, remoteParticipants.length]);
+
+  return null;
+}
 // ===== AVATAR CONTROLS =====
 function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
   const { localParticipant } = useLocalParticipant();

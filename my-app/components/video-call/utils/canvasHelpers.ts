@@ -31,8 +31,30 @@ export function drawVideoMirrored(
   height: number
 ): void {
   ctx.save();
+
+  const videoAspect = video.videoWidth / video.videoHeight;
+  const canvasAspect = width / height;
+  
+  let drawWidth = width;
+  let drawHeight = height;
+  let offsetX = 0;
+  let offsetY = 0;
+  
+  // Cover mode: Fill canvas, crop excess
+  if (videoAspect > canvasAspect) {
+    // Video rộng hơn → crop left/right
+    drawHeight = height;
+    drawWidth = height * videoAspect;
+    offsetX = (width - drawWidth) / 2;
+  } else {
+    // Video cao hơn → crop top/bottom
+    drawWidth = width;
+    drawHeight = width / videoAspect;
+    offsetY = (height - drawHeight) / 2;
+  }
+
   ctx.scale(-1, 1);
-  ctx.drawImage(video, -width, 0, width, height);
+  ctx.drawImage(video, -offsetX - drawWidth, offsetY, drawWidth, drawHeight);
   ctx.restore();
 }
 
@@ -42,7 +64,27 @@ export function drawVideoNormal(
   width: number,
   height: number
 ): void {
-  ctx.drawImage(video, 0, 0, width, height);
+
+  const videoAspect = video.videoWidth / video.videoHeight;
+  const canvasAspect = width / height;
+  
+  let drawWidth = width;
+  let drawHeight = height;
+  let offsetX = 0;
+  let offsetY = 0;
+  
+  // Cover mode
+  if (videoAspect > canvasAspect) {
+    drawHeight = height;
+    drawWidth = height * videoAspect;
+    offsetX = (width - drawWidth) / 2;
+  } else {
+    drawWidth = width;
+    drawHeight = width / videoAspect;
+    offsetY = (height - drawHeight) / 2;
+  }
+
+  ctx.drawImage(video, offsetX, offsetY, drawWidth, drawHeight);
 }
 
 export function copyCanvasMirrored(

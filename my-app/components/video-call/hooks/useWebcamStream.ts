@@ -12,6 +12,10 @@ export function useWebcamStream(
     if (webcamStream && videoRef.current) {
       videoRef.current.srcObject = webcamStream;
 
+      videoRef.current.style.objectFit = 'cover'; 
+      videoRef.current.playsInline = true;
+      videoRef.current.muted = true;
+
       videoRef.current.onloadedmetadata = async () => {
         if (!mounted) return;
 

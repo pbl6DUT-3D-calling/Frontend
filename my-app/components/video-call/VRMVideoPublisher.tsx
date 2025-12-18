@@ -55,20 +55,10 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
   // ⬅️ THÊM: Load VRM từ selectedModelUrl
   useEffect(() => {
     if (!scene || !camera || !selectedModelUrl) {
-      console.log('⚠️ Missing dependencies for VRM loading:', { 
-        scene: !!scene, 
-        camera: !!camera, 
-        selectedModelUrl 
-      });
       return;
     }
 
     const videoCallPath = getVideoCallModelPath(selectedModelUrl);
-
-    console.log('🔄 Loading VRM for video call:', {
-      modelContext: selectedModelUrl,
-      videoCallPath: videoCallPath
-    });
     setIsLoadingVRM(true);
 
     const loader = new GLTFLoader();
@@ -79,20 +69,16 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
       videoCallPath,
       (gltf) => {
         if (!scene || !camera) {
-          console.warn('Scene or camera is null during VRM load callback');
           setIsLoadingVRM(false);
           return;
         }
 
-        // Cleanup old VRM
         if (currentVrm) {
           scene.remove(currentVrm.scene);
-          console.log('🗑️ Removed old VRM');
         }
 
         const vrm = gltf.userData.vrm as VRM;
 
-        // Optimize
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
         VRMUtils.combineSkeletons(gltf.scene);
 
@@ -100,7 +86,6 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
           obj.frustumCulled = false;
         });
 
-        // Rotation + Pose
         vrm.scene.rotation.y = Math.PI;
         
         if (vrm.humanoid) {
@@ -114,17 +99,13 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
             if (rightUpperArm) rightUpperArm.rotation.z = -1;
             if (leftLowerArm) leftLowerArm.rotation.z = -0.2;
             if (rightLowerArm) rightLowerArm.rotation.z = 0.2;
-
-            console.log('💪 Pose set to relaxed');
           } catch (error) {
-            console.warn('Could not set relaxed pose:', error);
+            console.warn('Could not set pose:', error);
           }
         }
 
-        // Update transform
         vrm.scene.updateMatrixWorld(true);
 
-        // Center model
         const box = new THREE.Box3().setFromObject(vrm.scene);
         const center = box.getCenter(new THREE.Vector3());
         
@@ -132,43 +113,28 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         const offsetZ = -center.z;
         
         vrm.scene.position.set(offsetX, 0, offsetZ);
-        
-        console.log('📍 Model centered:', {
-          center: { x: center.x.toFixed(3), z: center.z.toFixed(3) },
-          offset: { x: offsetX.toFixed(3), z: offsetZ.toFixed(3) }
-        });
 
-        // Add to scene
         scene.add(vrm.scene);
         setCurrentVrm(vrm);
 
-        // Adjust camera
         setTimeout(() => {
           adjustCameraForVRM(camera, vrm.scene);
           setIsLoadingVRM(false);
-          console.log('✅ VRM loaded successfully for video call');
         }, 100);
       },
-      (progress) => {
-        const percent = Math.round((progress.loaded / progress.total) * 100);
-        if (percent % 20 === 0) {
-          console.log(`📥 Loading VRM: ${percent}%`);
-        }
-      },
+      undefined,
       (error) => {
-        console.error('❌ Error loading VRM:', error);
+        console.error('Error loading VRM:', error);
         setIsLoadingVRM(false);
       }
     );
 
     return () => {
-      // Cleanup khi unmount hoặc URL thay đổi
       if (currentVrm && scene) {
         scene.remove(currentVrm.scene);
-        console.log('🧹 Cleaned up VRM on unmount/change');
       }
     };
-  }, [scene, camera, selectedModelUrl]); // ⬅️ Dependencies: scene, camera, selectedModelUrl
+  }, [scene, camera, selectedModelUrl]);
 
   // AI Tracking
   const { aiClient, isConnected, isReady } = useAITracking(
@@ -232,7 +198,14 @@ const VRMVideoPublisherComponent = ({ enabled, webcamStream }: VRMVideoPublisher
         ref={webglCanvasRef}
         width={CANVAS_CONFIG.WIDTH}
         height={CANVAS_CONFIG.HEIGHT}
-        style={{ transform: 'scaleX(-1)' }}
+       style={{ 
+        transform: 'scaleX(-1)',
+        width: '100%', // ⬅️ THÊM: Responsive
+        height: 'auto', // ⬅️ THÊM: Giữ aspect ratio
+        maxWidth: `${CANVAS_CONFIG.WIDTH}px`,
+        maxHeight: `${CANVAS_CONFIG.HEIGHT}px`,
+        objectFit: 'contain' // ⬅️ THÊM
+      }}
       />
 
       <canvas

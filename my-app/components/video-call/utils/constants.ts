@@ -7,7 +7,8 @@ export const getResponsiveCanvasConfig = () => {
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : maxHeight;
   
   let width = Math.min(viewportWidth, maxWidth);
-  let height = Math.min(viewportHeight, maxHeight);
+  // let height = Math.min(viewportHeight, maxHeight);
+  let height = width / targetAspect;
   
   const currentAspect = width / height;
   if (currentAspect > targetAspect) {
@@ -19,7 +20,7 @@ export const getResponsiveCanvasConfig = () => {
   return {
     WIDTH: width,
     HEIGHT: height,
-    ASPECT_RATIO: width / height,
+    ASPECT_RATIO: targetAspect,
     FPS: 30,
   };
 };

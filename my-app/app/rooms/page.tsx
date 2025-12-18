@@ -27,30 +27,68 @@ export default function RoomsPage() {
     setError(null);
     
     try {
-      console.log('🔄 Fetching rooms...');
       const response = await fetch('/api/rooms');
       const data = await response.json();
       
       if (data.success) {
-        setRooms(data.rooms);
+        const activeRooms = data.rooms.filter((room: Room) => room.numParticipants > 0);
+
+        setRooms(activeRooms);
         setLastRefresh(new Date());
-        console.log(`✅ Loaded ${data.rooms.length} rooms`);
       } else {
         setError(data.error || 'Failed to fetch rooms');
       }
     } catch (err: any) {
-      console.error('❌ Error fetching rooms:', err);
+      console.error('Error fetching rooms:', err);
       setError('Failed to connect to server');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // ⬅️ Load once on mount
   useEffect(() => {
     fetchRooms();
   }, [fetchRooms]);
 
+  
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'room-deleted' && e.newValue) {
+        const data = JSON.parse(e.newValue);
+        console.log(`🔔 Room deleted notification: ${data.roomName}`);
+        
+        setRooms(prevRooms => 
+          prevRooms.filter(room => room.name !== data.roomName)
+        );
+        
+        // Fetch lại sau 1s để confirm
+        setTimeout(() => {
+          fetchRooms();
+        }, 1000);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [fetchRooms]);
+
+  // ✅ THÊM: Auto-refresh khi tab được focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const timeSinceLastRefresh = Date.now() - lastRefresh.getTime();
+        // Chỉ refresh nếu đã qua 3 giây kể từ lần refresh cuối
+        if (timeSinceLastRefresh > 3000) {
+          console.log('👁️ Tab focused - Auto refreshing rooms');
+          fetchRooms();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [lastRefresh, fetchRooms]);
 
   // // ⬅️ Auto-refresh khi tab được focus lại (user quay lại trang)
   // useEffect(() => {
