@@ -27,10 +27,10 @@ export function Navigation() {
               <Users className="w-4 h-4 mr-2" />
               Rooms
             </Button>
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+            {/* <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
               <Download className="w-4 h-4 mr-2" />
               Models
-            </Button>
+            </Button> */}
             <UserNav />
             <Button 
               className="bg-primary hover:bg-primary/90 text-primary-foreground"

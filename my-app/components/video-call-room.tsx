@@ -585,15 +585,22 @@ export function VideoCallRoom() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+          <div 
+            className="aspect-video bg-muted rounded-lg overflow-hidden relative"
+            style={{
+              background: background.type === "image" 
+                ? `url(${background.value}) center/cover no-repeat` 
+                : background.value,
+              backgroundColor: background.type === "image" ? "#333" : undefined
+            }}
+          >
             {isInCall && (
               <Canvas 
                 shadows 
                 camera={{ position: [0, 0, 1.0], fov: 30 }}
-                gl={{ preserveDrawingBuffer: true }}
+                gl={{ preserveDrawingBuffer: true, alpha: true }}
               >
-                <color attach="background" args={["#333"]} />
-                <fog attach="fog" args={["#333", 10, 20]} />
+                {/* Three.js scene transparent để nhìn thấy CSS background */}
                 <Suspense fallback={null}>
                   <Experience 
                     modelUrl={selectedModelUrl}
