@@ -282,9 +282,9 @@ export default function Page() {
                   <RecordingIndicator />
                   
                   {/* Layout Switcher - Top Right của video area */}
-                  <div className="absolute top-4 right-4 z-10">
+                  {/* <div className="absolute top-4 right-4 z-10">
                     <LayoutSwitcher />
-                  </div>
+                  </div> */}
 
                   {/* 3D Toggle Button - Top Left */}
                   <div className="absolute top-4 left-4 z-10">

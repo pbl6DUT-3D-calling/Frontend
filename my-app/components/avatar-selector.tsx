@@ -153,7 +153,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
         <div className="flex gap-6 h-[600px]">
           {/* Left Side - Model List */}
           <div className="flex-1 flex flex-col space-y-4">
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Button
                 variant="outline"
                 className="w-full border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 rounded-xl py-6"
@@ -162,7 +162,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
               </Button>
 
               <h3 className="text-sm font-semibold text-purple-700 mt-4">Thư viện của bạn</h3>
-            </div>
+            </div> */}
 
             {/* Model Grid - Scrollable */}
             <div className="flex-1 overflow-y-auto pr-2 space-y-2">
@@ -258,13 +258,13 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
                     </div>
                   </div>
                   
-                  <div className="p-4 bg-white/70 backdrop-blur-sm border-t-2 border-purple-200 space-y-3">
-                    <p className="text-lg font-semibold text-purple-900 text-center">{selectedModel.name}</p>
+                  {/* <div className="p-4 bg-white/70 backdrop-blur-sm border-t-2 border-purple-200 space-y-3"> */}
+                    {/* <p className="text-lg font-semibold text-purple-900 text-center">{selectedModel.name}</p>
                     <p className="text-sm text-purple-600 text-center">
                       Nhấn "Xác nhận" để sử dụng làm avatar
                     </p>
                     
-                    {/* ✅ NEW: Apply to Video Call Button */}
+                     ✅ NEW: Apply to Video Call Button 
                     {onApplyToVideoCall && (
                       <Button
                         onClick={() => {
@@ -275,8 +275,8 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
                       >
                         📹 Apply to Video Call
                       </Button>
-                    )}
-                  </div>
+                    )} */}
+                  {/* </div> */}
                 </div>
               ) : selectedModel && show3DPreview ? (
                 <div className="text-center space-y-4 p-6">

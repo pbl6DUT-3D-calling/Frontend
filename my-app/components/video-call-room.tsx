@@ -401,8 +401,8 @@ export function VideoCallRoom() {
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
             if (mediaPipeEyeDataRef.current) {
-              vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
-              vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
+              vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkLeft
+              vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkRight
               
               if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 1000) {
                 console.log('🔵 MediaPipe → vrmRig.blink:', {
