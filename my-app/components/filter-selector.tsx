@@ -82,7 +82,7 @@ export function FilterSelector({
             {FILTERS.map((filter) => (
               <button
                 key={filter.id}
-                onClick={() => onFilterChange(filter.id)}
+                onClick={() => onFilterChange(currentFilter === filter.id ? "none" : filter.id)}
                 className={`
                   flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all hover:scale-105
                   ${currentFilter === filter.id 
