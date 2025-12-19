@@ -159,28 +159,40 @@
   }
 }
 
+
+
 .lk-participant-tile video,
 .lk-participant-tile canvas {
   object-fit: contain !important; /* Giữ tỷ lệ, không bóp méo */
   width: 100% !important;
   height: 100% !important;
-  background: #000; /* Nền đen cho phần trống */
+  aspect-ratio: 16 / 9;
 }
-
-/* Optional: Nếu muốn cover (fill toàn bộ, có thể cắt phần thừa) */
-/* 
-.lk-participant-tile video,
-.lk-participant-tile canvas {
-  object-fit: cover !important;
-}
-*/
 
 /* ===== Fix layout grid để tránh bóp méo ===== */
 .lk-grid-layout {
-  background: #000;
+  background: transparent !important;
 }
 
 .lk-participant-tile {
   overflow: hidden;
-  background: #000;
+  background: transparent !important;
+}
+
+.lk-focus-layout,
+.lk-carousel-layout {
+  background: transparent !important;
+}
+
+.lk-room-container {
+  background: transparent !important;
+}
+
+[data-lk-theme] {
+  background: transparent !important;
+}
+
+/* ✅ THÊM: Override video track backgrounds */
+.lk-video-track {
+  background: transparent !important;
 }

@@ -20,6 +20,7 @@ export const VRMAvatar = ({
   externalExpressions = {},
   hideControls = false,
   disableFaceTracking = false,
+  instanceContext = "default",
   ...props 
 }) => {;
   
@@ -31,8 +32,13 @@ export const VRMAvatar = ({
       ? avatar 
       : `models/${avatar}`;
   
+  // ✅ Add unique query param to disable useGLTF cache per instance
+  // Use & if URL already has query params, otherwise use ?
+  const separator = modelPath.includes('?') ? '&' : '?';
+  const uniqueModelPath = `${modelPath}${separator}instance=${instanceContext}`;
+  
   const { scene, userData } = useGLTF(
-    modelPath,
+    uniqueModelPath,
     undefined,
     undefined,
     (loader) => {
@@ -134,7 +140,28 @@ export const VRMAvatar = ({
   const initialLocalQuats = useRef({});
 
   useEffect(() => {
+    const mountTime = Date.now();
+    console.log(`🎭 [${instanceContext}] VRMAvatar MOUNTED at`, mountTime);
+    
+    return () => {
+      const unmountTime = Date.now();
+      const lifetime = unmountTime - mountTime;
+      console.warn(`💀 [${instanceContext}] VRMAvatar UNMOUNTED after ${lifetime}ms`);
+    };
+  }, []); // Empty deps = mount/unmount only
+
+  useEffect(() => {
+    console.log(`🔄 [${instanceContext}] Model URL changed:`, modelPath.substring(0, 50) + '...');
+  }, [modelPath, instanceContext]);
+
+  useEffect(() => {
     const vrm = userData.vrm;
+    console.log(`🎭 VRMAvatar initialized for [${instanceContext}]:`, {
+      modelPath,
+      vrmObject: vrm,
+      sceneObject: scene,
+      instanceId: Date.now()
+    });
     // console.log("VRM loaded:", vrm);
     // console.log("VRM humanoid:", userData.vrm.expressionManager);
     // calling these functions greatly improves the performance

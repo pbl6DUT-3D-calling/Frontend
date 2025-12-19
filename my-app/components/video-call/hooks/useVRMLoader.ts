@@ -48,31 +48,20 @@ export function useVRMLoader(
         // Quay 180° để model face camera
         vrm.scene.rotation.y = Math.PI;
         
-        // ⬅️ THÊM: Set pose thả lỏng (không T-pose)
+        // Set pose thả lỏng
         if (vrm.humanoid) {
           try {
-            // Hạ tay xuống tự nhiên
             const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
             const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
             const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
             const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
             
-            if (leftUpperArm) {
-              leftUpperArm.rotation.z = 1; // Hạ tay trái
-              console.log('✋ Left arm relaxed');
-            }
-            if (rightUpperArm) {
-              rightUpperArm.rotation.z = -1; // Hạ tay phải
-              console.log('✋ Right arm relaxed');
-            }
-            if (leftLowerArm) {
-              leftLowerArm.rotation.z = -0.2; // Cong khuỷu trái
-            }
-            if (rightLowerArm) {
-              rightLowerArm.rotation.z = 0.2; // Cong khuỷu phải
-            }
+            if (leftUpperArm) leftUpperArm.rotation.z = 1;
+            if (rightUpperArm) rightUpperArm.rotation.z = -1;
+            if (leftLowerArm) leftLowerArm.rotation.z = -0.2;
+            if (rightLowerArm) rightLowerArm.rotation.z = 0.2;
 
-            console.log('💪 Pose set to relaxed (non T-pose)');
+            console.log('💪 Pose set to relaxed');
           } catch (error) {
             console.warn('Could not set relaxed pose:', error);
           }
@@ -86,21 +75,28 @@ export function useVRMLoader(
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         
-        // CENTER THEO TỈ LỆ %
-        const offsetX = -center.x;
-        const offsetZ = -center.z;
+        // ✅ AUTO CENTER + MANUAL OFFSET
+        const offsetX = -center.x ; 
+        const offsetY = 0 ;          
+        const offsetZ = -center.z ;  
         
-        vrm.scene.position.set(offsetX, 0, offsetZ);
+        vrm.scene.position.set(offsetX, offsetY, offsetZ);
         
-        console.log('📍 Model centered (proportional):', {
+        console.log('📍 Model positioned:', {
           rotation: `${(vrm.scene.rotation.y * 180 / Math.PI).toFixed(0)}°`,
           boundingBox: {
             size: { x: size.x.toFixed(3), y: size.y.toFixed(3), z: size.z.toFixed(3) },
             center: { x: center.x.toFixed(3), y: center.y.toFixed(3), z: center.z.toFixed(3) }
           },
-          offset: {
-            x: offsetX.toFixed(3),
-            z: offsetZ.toFixed(3)
+          autoOffset: {
+            x: (-center.x).toFixed(3),
+            y: '0.000',
+            z: (-center.z).toFixed(3)
+          },
+          manualOffset: { // ⬅️ THÊM log
+            x: MANUAL_POSITION_OFFSET.x.toFixed(3),
+            y: MANUAL_POSITION_OFFSET.y.toFixed(3),
+            z: MANUAL_POSITION_OFFSET.z.toFixed(3)
           },
           finalPosition: {
             x: vrm.scene.position.x.toFixed(3),

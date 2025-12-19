@@ -21,7 +21,7 @@ import { Experience } from "./Experience"
 import { useVideoRecognition } from "../hooks/useVideoRecognition"
 import { wflwToVRMRig, type WFLWData } from "@/utils/wflwToVRM"
 import { useMediaPipeEyes } from "../hooks/useEyes"
-import { useModel } from "@/context/modelContext"
+import { useModelState } from "@/context/modelContext" // ✅ Dùng state context để READ
 import { BackgroundSelector, BACKGROUNDS, type BackgroundOption } from "./background-selector"
 import { FilterSelector, type FilterType } from "./filter-selector"
 
@@ -48,10 +48,13 @@ function RecordingController({
 }
 
 export function VideoCallRoom() {
-  const { selectedModelUrl } = useModel()
+  const { selectedModelUrl } = useModelState() // ✅ CHỈ đọc state
+  
+  // ✅ Log NGAY trong body để xem component có re-render không
+  console.log('🔄 VideoCallRoom RENDER with selectedModelUrl:', selectedModelUrl);
   
   useEffect(() => {
-    console.log('🎥 Video Call Room Model URL:', selectedModelUrl);
+    console.log('🎥 Video Call Room Model URL changed to:', selectedModelUrl);
   }, [selectedModelUrl]);
   
   const [isVideoOn, setIsVideoOn] = useState(false)
@@ -398,8 +401,8 @@ export function VideoCallRoom() {
             const vrmRig = wflwToVRMRig(data, 160, 120)
             
             if (mediaPipeEyeDataRef.current) {
-              vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkLeft
-              vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkRight
+              vrmRig.blink.r = mediaPipeEyeDataRef.current.blinkLeft
+              vrmRig.blink.l = mediaPipeEyeDataRef.current.blinkRight
               
               if (!window._lastMergeLog || Date.now() - window._lastMergeLog > 1000) {
                 console.log('🔵 MediaPipe → vrmRig.blink:', {
@@ -582,18 +585,25 @@ export function VideoCallRoom() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+          <div 
+            className="aspect-video bg-muted rounded-lg overflow-hidden relative"
+            style={{
+              background: background.type === "image" 
+                ? `url(${background.value}) center/cover no-repeat` 
+                : background.value,
+              backgroundColor: background.type === "image" ? "#333" : undefined
+            }}
+          >
             {isInCall && (
               <Canvas 
                 shadows 
                 camera={{ position: [0, 0, 1.0], fov: 30 }}
                 gl={{ preserveDrawingBuffer: true }}
+                style={{ transform: 'scaleX(-1)' }}
               >
-                <color attach="background" args={["#333"]} />
-                <fog attach="fog" args={["#333", 10, 20]} />
+                {/* Three.js scene transparent để nhìn thấy CSS background */}
                 <Suspense fallback={null}>
                   <Experience 
-                    key={`videocall-${selectedModelUrl}`}
                     modelUrl={selectedModelUrl}
                     sceneBackground="transparent"
                     filter={filter}
@@ -635,11 +645,15 @@ export function VideoCallRoom() {
                   autoPlay
                   playsInline
                   muted
-                  style={{ display: 'block' }}
+                  style={{ 
+                    display: 'block',
+                    transform: 'scaleX(-1)'
+                  }}
                 />
                 <canvas
                   ref={drawCanvas}
                   className="absolute z-10 w-full h-full top-0 left-0 pointer-events-none"
+                  style={{ transform: 'scaleX(-1)' }}
                 />
                 <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded z-20">
                   {fpsDisplay} FPS
@@ -722,42 +736,6 @@ export function VideoCallRoom() {
             >
               {isInCall ? <PhoneOff className="w-4 h-4" /> : <Phone className="w-4 h-4" />}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Participants
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary-foreground">You</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium">You</p>
-                <p className="text-xs text-muted-foreground">Host</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isVideoOn && (
-                  <span className="text-xs text-green-500 flex items-center gap-1">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    Camera On
-                  </span>
-                )}
-                {isRecording && (
-                  <span className="text-xs text-red-500 flex items-center gap-1">
-                    <Circle className="w-2 h-2 fill-current animate-pulse" />
-                    Recording
-                  </span>
-                )}
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

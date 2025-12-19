@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, Suspense } from "react"
+import { useState, useRef, useEffect, Suspense, useCallback, useMemo } from "react"
 import { Model3D } from "./model-3d" // Import component đã refactor
 import { Button } from "@/components/ui/button"
 import { Canvas } from "@react-three/fiber"
@@ -21,7 +21,7 @@ import {
 import { Upload, Plus, CheckCircle, X, Trash2 } from "lucide-react"
 import { modelService } from "@/service/modelService" // Import model service
 import { AvatarSelector } from "@/components/avatar-selector" // Import AvatarSelector
-import { useModel } from "@/context/modelContext" // 🔄 Import ModelContext
+import { useModelActions } from "@/context/modelContext" // 🔄 Import ONLY Actions (không re-render khi state thay đổi)
 // Sửa: Đã xóa import tĩnh
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" 
 
@@ -104,8 +104,8 @@ const PREVIEW_MODEL_KEY = 'pbl6_preview_model_url';
 
 // ==== COMPONENT CHÍNH QUẢN LÝ STUDIO ====
 export function VRMStudio() {
-  // 🔄 Get ONLY setSelectedModel from context (don't subscribe to selectedModelUrl to avoid re-render)
-  const { setSelectedModel } = useModel();
+  // ✅ CHỈ lấy actions, KHÔNG subscribe vào state => KHÔNG re-render khi state thay đổi
+  const { setSelectedModel } = useModelActions();
   
   // === Refs ===
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,16 +124,26 @@ export function VRMStudio() {
   ]);
   
   const [currentVrmUrl, setCurrentVrmUrl] = useState<string | null>(() => {
+    // ✅ Đọc từ localStorage (preview model riêng)
     if (typeof window !== 'undefined') {
-      const savedUrl = localStorage.getItem(PREVIEW_MODEL_KEY);
+      const savedUrl = localStorage.getItem('pbl6_preview_model_url');
       if (savedUrl) {
-        return savedUrl; 
+        console.log('🔄 Restored preview model:', savedUrl);
+        return savedUrl;
       }
     }
-    return modelList[0]?.vrmUrl || null;
+    // ✅ Fallback về default model (hardcoded để tránh lỗi closure)
+    const defaultModelUrl = "models/7667029464206216702.vrm";
+    console.log('🎯 Using default model:', defaultModelUrl);
+    return defaultModelUrl;
   });
-  const [selectedInModal, setSelectedInModal] = useState<string | null>(modelList[0]?.id || null);
-  const [previewInModalUrl, setPreviewInModalUrl] = useState<string | null>(modelList[0]?.vrmUrl || null);
+  const [selectedInModal, setSelectedInModal] = useState<string | null>(
+    modelList[0]?.id || null
+  );
+  
+  const [previewInModalUrl, setPreviewInModalUrl] = useState<string | null>(
+    modelList[0]?.vrmUrl || null
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // Loading cho model chính
@@ -159,11 +169,84 @@ export function VRMStudio() {
   
   const selectTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce timeout
 
+  // === LOG RENDER STATE ===
+  console.log('🎨 VRMStudio RENDER:', {
+    showModal,
+    currentVrmUrl: currentVrmUrl?.substring(0, 50) + '...',
+    willRenderCanvas: !showModal && !!currentVrmUrl,
+    isLoading,
+    hasCurrentVrmUrl: !!currentVrmUrl
+  });
+
+  // === Memoize setSelectedModel callback để tránh re-render ===
+  const handleApplyToVideoCall = useCallback(() => {
+    const currentModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
+    const modelName = currentModel?.name || "Default Model";
+    console.log('🎬 Apply to Video Call clicked');
+    console.log('   - currentVrmUrl:', currentVrmUrl);
+    console.log('   - modelName:', modelName);
+    console.log('   - About to call setSelectedModel');
+    
+    // ✅ Update modelContext (global)
+    setSelectedModel(currentVrmUrl || '', modelName);
+    
+    console.log('   - setSelectedModel called successfully');
+    console.log('   - Scrolling to video-call section');
+    
+    // ✅ Scroll to video-call section to show applied model
+    setTimeout(() => {
+      const videoCallSection = document.getElementById('video-call');
+      if (videoCallSection) {
+        videoCallSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        console.log('   - Scrolled to video-call section');
+      } else {
+        console.warn('   - video-call section not found');
+      }
+    }, 100);
+  }, [currentVrmUrl, modelList, setSelectedModel]);
+
+  // === Debug: Check state on mount/unmount ===
   useEffect(() => {
+    console.log('🔍 VRMStudio mounted with currentVrmUrl:', currentVrmUrl);
+    console.log('🔍 localStorage preview model:', localStorage.getItem('pbl6_preview_model_url'));
+    
+    // ✅ Force save currentVrmUrl to localStorage on mount (để đảm bảo sync)
     if (currentVrmUrl && typeof window !== 'undefined') {
-      localStorage.setItem(PREVIEW_MODEL_KEY, currentVrmUrl);
-      console.log('💾 Saved preview model to localStorage:', currentVrmUrl);
+      localStorage.setItem('pbl6_preview_model_url', currentVrmUrl);
+      console.log('💾 Force saved on mount:', currentVrmUrl);
     }
+
+    // Cleanup: Log when component unmounts
+    return () => {
+      console.warn('❌ VRMStudio UNMOUNTING! currentVrmUrl was:', currentVrmUrl);
+    };
+  }, []);
+
+  // === Persist currentVrmUrl to localStorage ===
+  useEffect(() => {
+      if (currentVrmUrl && typeof window !== 'undefined') {
+        localStorage.setItem('pbl6_preview_model_url', currentVrmUrl);
+        console.log('💾 Saved preview model:', currentVrmUrl);
+      }
+    }, [currentVrmUrl]);
+
+  // === Bảo vệ: Restore nếu currentVrmUrl bị null ===
+  useEffect(() => {
+    if (!currentVrmUrl && typeof window !== 'undefined') {
+      const savedUrl = localStorage.getItem('pbl6_preview_model_url');
+      const defaultModelUrl = "models/7667029464206216702.vrm";
+      const urlToRestore = savedUrl || defaultModelUrl;
+      
+      console.warn('⚠️ currentVrmUrl is null! Restoring from:', urlToRestore);
+      console.warn('   Call stack:', new Error().stack);
+      setCurrentVrmUrl(urlToRestore);
+    }
+  }, [currentVrmUrl]);
+
+  // === Debug: Track khi currentVrmUrl bị thay đổi ===
+  useEffect(() => {
+    console.log('📊 currentVrmUrl changed to:', currentVrmUrl);
+    console.log('   Call stack:', new Error().stack?.split('\n').slice(1, 4).join('\n'));
   }, [currentVrmUrl]);
 
   useEffect(() => {
@@ -172,22 +255,18 @@ export function VRMStudio() {
       if (matchedModel) {
         setSelectedInModal(matchedModel.id);
         setPreviewInModalUrl(matchedModel.vrmUrl);
-        console.log('✅ Restored selectedInModal:', matchedModel.id);
+        console.log('✅ Synced selectedInModal:', matchedModel.id);
       }
     }
-  }, [modelList]);
+  }, [currentVrmUrl, modelList]);
 
   // === Load models từ server khi component mount ===
   useEffect(() => {
     const loadUserModels = async () => {
       try {
         const response = await modelService.getUserModels();
-        console.log("API Response:", response);
-        
-        // Backend có thể trả về array trực tiếp hoặc object {models: [...]}
         const modelsArray = Array.isArray(response) ? response : (response.models || []);
         
-        // Chuyển đổi dữ liệu từ server sang format ModelItem
         const convertedModels: ModelItem[] = modelsArray.map((model: any) => ({
           id: "server-" + (model.id?.toString() || model._id?.toString() || crypto.randomUUID()),
           name: model.name || model.fileName || "Unnamed Model",
@@ -197,9 +276,6 @@ export function VRMStudio() {
           fileSize: model.file_size ? parseInt(model.file_size) : undefined,
         }));
 
-        console.log("Converted models:", convertedModels);
-
-        // Merge với model mặc định và loại bỏ duplicate
         setModelList(prev => {
           const existingIds = new Set(prev.map(m => m.id));
           const uniqueNewModels = convertedModels.filter(m => !existingIds.has(m.id));
@@ -208,19 +284,17 @@ export function VRMStudio() {
         
       } catch (error) {
         console.error("Failed to load user models:", error);
-        alert("Không thể tải danh sách models. Vui lòng đăng nhập lại.");
       }
     };
 
     loadUserModels();
 
-    // Cleanup timeout khi unmount
     return () => {
       if (selectTimeoutRef.current) {
         clearTimeout(selectTimeoutRef.current);
       }
     };
-  }, []); // Chạy 1 lần khi mount
+  }, []);
 
   // === Handlers ===
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,14 +399,15 @@ export function VRMStudio() {
     const selectedModel = modelList.find(m => m.id === selectedInModal);
     if (selectedModel) {
       setIsLoading(true);
-    
+      
+      // ✅ Update currentVrmUrl (local preview)
       setCurrentVrmUrl(selectedModel.vrmUrl);
       
-      // Tắt loading sau 3s
       setTimeout(() => setIsLoading(false), 3000);
     }
     setShowModal(false);
   };
+
 
   const triggerFileInput = () => {
     fileInputRef.current?.click();
@@ -490,90 +565,89 @@ export function VRMStudio() {
       
 
       {/* VRM Studio Preview with Animation Controls */}
-      {!showModal && currentVrmUrl && (
-        <div 
-          ref={containerRef}
-          className="h-[60vh] w-full bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl border-2 border-purple-200 shadow-lg overflow-hidden relative"
-        >
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center space-y-4">
-                <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-purple-700 font-medium">Đang tải VRM model...</p>
-              </div>
+      {/* ✅ Luôn render canvas nhưng ẩn khi có modal để tránh WebGL Context Lost */}
+      <div 
+        ref={containerRef} 
+        className={`h-[60vh] w-full bg-gradient-to-br from-purple-50 via-white to-purple-50 rounded-2xl border-2 border-purple-200 shadow-lg overflow-hidden relative ${showModal ? 'hidden' : ''}`}
+      >
+        {!currentVrmUrl ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <p className="text-purple-700 font-medium">Chọn model để xem preview</p>
             </div>
-          ) : (
-            <>
-              {console.log('🎨 Canvas rendering with currentVrmUrl:', currentVrmUrl)}
-              <Canvas
-                camera={{ position: [0, 1.5, 3], fov: 50 }}
-                gl={{
-                  preserveDrawingBuffer: true,
-                  antialias: true,
-                  alpha: true
-                }}
-                dpr={[1, 2]}
-              >
-                <Suspense fallback={null}>
-                  <ambientLight intensity={0.8} />
-                  <directionalLight position={[5, 5, 5]} intensity={1.5} />
-                  <directionalLight position={[-5, 5, -5]} intensity={0.7} />
-                  <VRMAvatar 
-                    key={`preview-${currentVrmUrl}`}
-                    avatar={currentVrmUrl} 
-                    externalAnimation={currentAnimation}
-                    externalExpressions={expressions}
-                    hideControls={true}
-                    disableFaceTracking={true}
-                  />
-                  <OrbitControls
-                    enableZoom={true}
-                    enablePan={false}
-                    minDistance={1.5}
-                    maxDistance={5}
-                    target={[0, 0.9, 0]}
-                  />
-                  <Environment preset="sunset" />
-                </Suspense>
-              </Canvas>
-              
-              {/* Model Info Card - Left */}
-              <ModelInfo
-                modelName={modelList.find(m => m.vrmUrl === currentVrmUrl)?.name || "Default Model"}
-                modelUrl={currentVrmUrl || ""}
-                uploadDate={modelList.find(m => m.vrmUrl === currentVrmUrl)?.uploadDate}
-                fileSize={modelList.find(m => m.vrmUrl === currentVrmUrl)?.fileSize}
-                onApplyToVideoCall={() => {
-                  const currentModel = modelList.find(m => m.vrmUrl === currentVrmUrl);
-                  const modelName = currentModel?.name || "Default Model";
-                  console.log('🎬 ========== APPLY TO VIDEO CALL CLICKED ==========');
-                  console.log('📺 Preview Model URL:', currentVrmUrl);
-                  console.log('📝 Preview Model Name:', modelName);
-                  console.log('==================================================');
-                  setSelectedModel(currentVrmUrl || '', modelName);
-                }}
-              />
-              
-              {/* Animation Controls Overlay - Right */}
-              <VRMControls
-                currentAnimation={currentAnimation}
-                onAnimationChange={(anim) => setCurrentAnimation(anim)}
-                onExpressionChange={(exp, value) => {
-                  setExpressions(prev => ({ ...prev, [exp]: value }));
-                }}
-              />
-              
-              {/* Quick Actions Bar - Bottom Center */}
-              <QuickActions
-                onScreenshot={handleScreenshot}
-                onExportPose={handleExportPose}
-                onShare={handleShare}
-                onFullscreen={handleFullscreen}
-              />
-            </>
-          )}
-        </div>
-      )}
+          </div>
+        ) : isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+              <p className="text-purple-700 font-medium">Đang tải VRM model...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {console.log('🖼️ Rendering Canvas in VRMStudio with:', {
+              currentVrmUrl: currentVrmUrl.substring(0, 50) + '...',
+              showModal,
+              containerHidden: showModal
+            })}
+            <Canvas
+              camera={{ position: [0, 1.5, 3], fov: 50 }}
+              gl={{
+                preserveDrawingBuffer: true,
+                antialias: true,
+                alpha: true
+              }}
+              dpr={[1, 2]}
+            >
+              <Suspense fallback={null}>
+                <ambientLight intensity={0.8} />
+                <directionalLight position={[5, 5, 5]} intensity={1.5} />
+                <directionalLight position={[-5, 5, -5]} intensity={0.7} />
+                <VRMAvatar 
+                  key={`preview-${currentVrmUrl}`} // ✅ Force re-render when URL changes
+                  avatar={currentVrmUrl} 
+                  externalAnimation={currentAnimation}
+                  externalExpressions={expressions}
+                  hideControls={true}
+                  disableFaceTracking={true}
+                  instanceContext="studio"
+                />
+                <OrbitControls
+                  enableZoom={true}
+                  enablePan={false}
+                  minDistance={1.5}
+                  maxDistance={5}
+                  target={[0, 0.9, 0]}
+                />
+                <Environment preset="sunset" />
+              </Suspense>
+            </Canvas>
+            
+            <ModelInfo
+              modelName={modelList.find(m => m.vrmUrl === currentVrmUrl)?.name || "Default Model"}
+              modelUrl={currentVrmUrl || ""}
+              uploadDate={modelList.find(m => m.vrmUrl === currentVrmUrl)?.uploadDate}
+              fileSize={modelList.find(m => m.vrmUrl === currentVrmUrl)?.fileSize}
+              onApplyToVideoCall={handleApplyToVideoCall}
+            />
+            
+            <VRMControls
+              currentAnimation={currentAnimation}
+              onAnimationChange={(anim) => setCurrentAnimation(anim)}
+              onExpressionChange={(exp, value) => {
+                setExpressions(prev => ({ ...prev, [exp]: value }));
+              }}
+            />
+            
+            <QuickActions
+              onScreenshot={handleScreenshot}
+              onExportPose={handleExportPose}
+              onShare={handleShare}
+              onFullscreen={handleFullscreen}
+            />
+          </>
+        )}
+      </div>
 
       {/* Các nút điều khiển */}
       <div className="flex items-center gap-4 justify-center">

@@ -1,14 +1,19 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react'
 
-interface ModelContextType {
+interface ModelStateType {
   selectedModelUrl: string
   selectedModelName: string
+}
+
+interface ModelActionsType {
   setSelectedModel: (url: string, name: string) => void
 }
 
-const ModelContext = createContext<ModelContextType | undefined>(undefined)
+// ✅ Split into 2 contexts: State (for reading) and Actions (for writing)
+const ModelStateContext = createContext<ModelStateType | undefined>(undefined)
+const ModelActionsContext = createContext<ModelActionsType | undefined>(undefined)
 
 // ✅ Model mặc định từ vrm-studio
 const DEFAULT_MODEL_URL = "models/7667029464206216702.vrm";
@@ -45,26 +50,56 @@ export function ModelProvider({ children }: { children: ReactNode }) {
         url: selectedModelUrl,
         name: selectedModelName
       });
+      console.log('🔔 ModelContext state CHANGED - consumers should re-render now!');
     }
   }, [selectedModelUrl, selectedModelName]);
 
-  const setSelectedModel = (url: string, name: string) => {
+  const setSelectedModel = useCallback((url: string, name: string) => {
     console.log('🔄 ModelContext: Updating model to:', { url, name });
     setSelectedModelUrl(url);
     setSelectedModelName(name);
-  };
+  }, []);
+
+  // ✅ Memoize state và actions RIÊNG BIỆT
+  const stateValue = useMemo(() => ({
+    selectedModelUrl,
+    selectedModelName
+  }), [selectedModelUrl, selectedModelName]);
+
+  const actionsValue = useMemo(() => ({
+    setSelectedModel
+  }), [setSelectedModel]);
 
   return (
-    <ModelContext.Provider value={{ selectedModelUrl, selectedModelName, setSelectedModel }}>
-      {children}
-    </ModelContext.Provider>
+    <ModelActionsContext.Provider value={actionsValue}>
+      <ModelStateContext.Provider value={stateValue}>
+        {children}
+      </ModelStateContext.Provider>
+    </ModelActionsContext.Provider>
   );
 }
 
-export function useModel() {
-  const context = useContext(ModelContext);
+// ✅ Hook để READ state (components cần hiển thị model)
+export function useModelState() {
+  const context = useContext(ModelStateContext);
   if (context === undefined) {
-    throw new Error('useModel must be used within a ModelProvider');
+    throw new Error('useModelState must be used within a ModelProvider');
   }
   return context;
+}
+
+// ✅ Hook để WRITE actions (components chỉ cần set model)
+export function useModelActions() {
+  const context = useContext(ModelActionsContext);
+  if (context === undefined) {
+    throw new Error('useModelActions must be used within a ModelProvider');
+  }
+  return context;
+}
+
+// ✅ Backward compatibility - hook cũ vẫn hoạt động
+export function useModel() {
+  const state = useModelState();
+  const actions = useModelActions();
+  return { ...state, ...actions };
 }

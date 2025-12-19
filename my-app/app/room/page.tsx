@@ -8,6 +8,7 @@ import {
   useTracks,
   LiveKitRoom,
   useLocalParticipant,
+  useRemoteParticipants,
 } from '@livekit/components-react';
 import { LocalVideoTrack, Track } from 'livekit-client';
 import '@livekit/components-styles';
@@ -26,6 +27,7 @@ import ChatInput from '@/components/video-call/chat/ChatInput';
 import { useChat } from '@/components/video-call/hooks/useChat';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
+import { BACKGROUNDS, type BackgroundOption } from '@/components/video-call/controls/BackgroundControl';
 
 export default function Page() {
   const params = useSearchParams();
@@ -42,6 +44,7 @@ export default function Page() {
     isCameraOn: true,
     isMicOn: true
   });
+  const [background, setBackground] = useState<BackgroundOption>(BACKGROUNDS[0]);   
 
   const getToken = useCallback(async (roomName: string, userName: string) => {
     try {
@@ -92,12 +95,33 @@ export default function Page() {
     }
   };
 
-  const handleDisconnected = useCallback(() => {
-    console.log('Disconnected from room');
+  const handleDisconnected = useCallback(async () => {
+    console.log('🚪 Disconnected from room');
+    try {
+      console.log(`🗑️ Deleting room on disconnect: ${room}`);
+      
+      const response = await fetch('/api/rooms/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roomName: room }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        localStorage.setItem('room-deleted', JSON.stringify({
+          roomName: room,
+          timestamp: Date.now()
+        }));
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error);
+    }
+    
     setShouldRender(false);
     setToken('');
     router.push('/room');
-  }, [router]);
+  }, [room, router]);
 
   // ===== PREVIEW SCREEN =====
   if (!shouldRender || !token) {
@@ -209,7 +233,13 @@ export default function Page() {
   return (
     <ModelProvider>
       <VRMProvider>
-        <div className="relative h-screen flex flex-col bg-gray-900 overflow-hidden">
+        <div 
+          className="relative h-screen flex flex-col overflow-hidden"
+          style={{
+            // ✅ CHỈ DÙNG `background` (không dùng backgroundColor)
+            background:'#1f2937'
+          }}
+        >
           <LiveKitRoom
             video={previewSettings.isCameraOn} 
             audio={previewSettings.isMicOn}
@@ -219,7 +249,13 @@ export default function Page() {
             onDisconnected={handleDisconnected}
             connect={true}
             className="flex-1 flex flex-col"
+            style={{ 
+              background: 'transparent', 
+              backgroundColor: 'transparent'  
+            }}
           >
+
+            <RoomCleanupManager roomName={room} />
             {/* Main Content Wrapper */}
             <div className="flex-1 flex overflow-hidden" style={{ height: 'calc(100vh - 88px)' }}>
               
@@ -227,20 +263,28 @@ export default function Page() {
               <div 
                 className="flex-1 flex flex-col transition-all duration-300 h-full"
                 style={{ 
-                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0'
+                  marginRight: isChatOpen ? `${chatPanelWidth}px` : '0',
+                  background: 'transparent', 
+                  backgroundColor: 'transparent' 
                 }}
               >
                 {/* Video Grid - Chiếm toàn bộ không gian còn lại */}
-                <div className="flex-1 relative overflow-hidden">
+                <div 
+                  className="flex-1 relative overflow-hidden"
+                  style={{
+                    background: 'transparent',
+                    backgroundColor: 'transparent' 
+                  }}
+                >
                   <MyVideoConference />
                   
                   {/* ✅ THÊM Recording Indicator - TOP CENTER */}
                   <RecordingIndicator />
                   
                   {/* Layout Switcher - Top Right của video area */}
-                  <div className="absolute top-4 right-4 z-10">
+                  {/* <div className="absolute top-4 right-4 z-10">
                     <LayoutSwitcher />
-                  </div>
+                  </div> */}
 
                   {/* 3D Toggle Button - Top Left */}
                   <div className="absolute top-4 left-4 z-10">
@@ -273,6 +317,9 @@ export default function Page() {
             <MediaControlBar 
               isChatOpen={isChatOpen}
               onChatToggle={() => setIsChatOpen(!isChatOpen)}
+              currentBackground={background} 
+              onBackgroundChange={setBackground}
+              is3DEnabled={is3DEnabled} 
             />
 
             {/* Audio Renderer */}
@@ -282,6 +329,7 @@ export default function Page() {
             <AvatarControlsAndPublisher 
               is3DEnabled={is3DEnabled} 
               setIs3DEnabled={setIs3DEnabled} 
+              background={is3DEnabled ? background : BACKGROUNDS[0]} 
             />
           </LiveKitRoom>
         </div>
@@ -290,8 +338,49 @@ export default function Page() {
   );
 }
 
+
+function RoomCleanupManager({ roomName }: { roomName: string }) {
+  const remoteParticipants = useRemoteParticipants();
+  const hasDeletedRef = useRef(false);
+
+  useEffect(() => {
+    hasDeletedRef.current = false;
+  }, [roomName]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (remoteParticipants.length === 0 && !hasDeletedRef.current) {
+        hasDeletedRef.current = true;
+
+        console.log('⚠️ Tab closing - deleting room via beacon');
+        navigator.sendBeacon(
+          '/api/rooms/delete',
+          new Blob([JSON.stringify({ roomName })], { type: 'application/json' })
+        );
+
+        localStorage.setItem('room-deleted', JSON.stringify({
+          roomName,
+          timestamp: Date.now()
+        }));
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [roomName, remoteParticipants.length]);
+
+  return null;
+}
 // ===== AVATAR CONTROLS =====
-function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabled: boolean, setIs3DEnabled: (v: boolean) => void }) {
+function AvatarControlsAndPublisher({ 
+  is3DEnabled, 
+  setIs3DEnabled,
+  background 
+}: { 
+  is3DEnabled: boolean;
+  setIs3DEnabled: (v: boolean) => void;
+  background: BackgroundOption;
+}) {
   const { localParticipant } = useLocalParticipant();
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -359,7 +448,11 @@ function AvatarControlsAndPublisher({ is3DEnabled, setIs3DEnabled }: { is3DEnabl
 
   return (
     <div style={{ display: 'none' }}>
-      <VRMVideoPublisher enabled={is3DEnabled} webcamStream={webcamStream} />
+      <VRMVideoPublisher 
+        enabled={is3DEnabled} 
+        webcamStream={webcamStream}
+        background={background} 
+      />
     </div>
   );
 }
@@ -375,8 +468,20 @@ function MyVideoConference() {
   );
   
   return (
-    <GridLayout tracks={tracks} style={{ height: '100%' }}>
-      <ParticipantTile />
+    <GridLayout 
+      tracks={tracks} 
+      style={{ 
+        height: '100%',
+        background: 'transparent', 
+        backgroundColor: 'transparent' 
+      }}
+    >
+      <ParticipantTile 
+        style={{
+          background: 'transparent',
+          backgroundColor: 'transparent'
+        }}
+      />
     </GridLayout>
   );
 }
