@@ -57,7 +57,7 @@ export function ModelGallery() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4 max-h-[600px] overflow-y-auto pr-2">
           {sampleModels.map((model) => (
             <div
               key={model.id}

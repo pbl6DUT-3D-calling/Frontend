@@ -174,6 +174,8 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
     setModelToDelete(null);
   };
 
+  const isDefaultModel = (modelId: string) => modelId === DEFAULT_MODEL.id;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 rounded-2xl">
@@ -186,6 +188,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
         <div className="flex gap-6 h-[600px]">
           {/* Left Side - Model List */}
           <div className="flex-1 flex flex-col space-y-4">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[550px]">
             {/* <div className="space-y-2">
               <Button
                 variant="outline"
@@ -240,17 +243,20 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
                         <CheckCircle className="w-6 h-6 text-purple-600 flex-shrink-0" />
                       )}
                       {/* Delete Button */}
-                      <button
-                        onClick={(e) => handleDeleteClick(e, model)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-lg z-10"
-                        title="Xóa model"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!isDefaultModel(model.id) && (
+                        <button
+                          onClick={(e) => handleDeleteClick(e, model)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-lg z-10"
+                          title="Xóa model"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
               )}
+            </div>
             </div>
           </div>
 
