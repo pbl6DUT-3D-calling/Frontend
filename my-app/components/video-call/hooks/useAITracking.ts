@@ -18,7 +18,6 @@ export function useAITracking(
   const aiClientRef = useRef<AIServerClient | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   
-  // ✅ THAY ĐỔI: Thêm isProcessingRef giống Video Call Room
   const isProcessingRef = useRef(false);
   const latencyRef = useRef(0);
   const lastSendTimeRef = useRef(0);
@@ -72,12 +71,12 @@ export function useAITracking(
     );
 
     client.onResult((result: AIServerResult) => {
-      // ✅ TÍNH LATENCY
+      // TÍNH LATENCY
       const receiveTime = Date.now();
       latencyRef.current = receiveTime - lastSendTimeRef.current;
       
       if (!currentVrm || !result.found) {
-        isProcessingRef.current = false; // ✅ RESET để gửi tiếp
+        isProcessingRef.current = false; // RESET để gửi tiếp
         return;
       }
 
@@ -92,7 +91,7 @@ export function useAITracking(
         FRAME_HEIGHT
       );
 
-      // ✅ RESET isProcessing để cho phép gửi frame tiếp
+      // RESET isProcessing để cho phép gửi frame tiếp
       isProcessingRef.current = false;
     });
 
@@ -112,7 +111,7 @@ export function useAITracking(
     };
   }, [enabled, currentVrm]);
 
-  // ✅ Send frames - LOGIC GIỐNG VIDEO CALL ROOM
+  // Send frames - LOGIC GIỐNG VIDEO CALL ROOM
   useEffect(() => {
     if (!enabled || !isReady || !videoRef.current || !aiClientRef.current) {
       if (animationFrameRef.current) {
@@ -132,7 +131,7 @@ export function useAITracking(
         return;
       }
 
-      // ✅ NATURAL THROTTLING: Chỉ skip khi đang xử lý + latency cao
+      // NATURAL THROTTLING: Chỉ skip khi đang xử lý + latency cao
       if (isProcessingRef.current) {
         if (latencyRef.current > 200) {
           frameSkipCounter.current++;
@@ -158,11 +157,10 @@ export function useAITracking(
           
           const base64Image = canvas.toDataURL('image/jpeg', 0.3).split(',')[1];
           
-          // ✅ GHI NHẬN THỜI GIAN GỬI
           lastSendTimeRef.current = Date.now();
           aiClientRef.current.sendFrame(base64Image);
           
-          // ✅ SET isProcessing = true, chờ response
+          // SET isProcessing = true, chờ response
           isProcessingRef.current = true;
         }
       } catch (error) {

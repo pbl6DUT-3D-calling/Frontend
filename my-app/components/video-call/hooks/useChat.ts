@@ -18,7 +18,7 @@ export function useChat() {
   const room = useRoomContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  // 📥 Nhận tin nhắn từ DataChannel
+  // Nhận tin nhắn từ DataChannel
   const onMessage = useCallback((msg: ReceivedDataMessage) => {
     try {
       const decoder = new TextDecoder();
@@ -53,17 +53,17 @@ export function useChat() {
       };
 
       setMessages((prev) => [...prev, chatMessage]);
-      console.log('💬 Received message:', chatMessage);
+      console.log('Received message:', chatMessage);
     } catch (error) {
-      console.error('❌ Error decoding message:', error);
+      console.error('Error decoding message:', error);
       console.log('Message object:', msg);
     }
   }, []);
 
-  // 🔌 Subscribe to DataChannel
+  // Subscribe to DataChannel
   useDataChannel(CHAT_TOPIC, onMessage);
 
-  // 📤 Gửi tin nhắn
+  // Gửi tin nhắn
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || !room) return;
@@ -91,15 +91,15 @@ export function useChat() {
         };
 
         setMessages((prev) => [...prev, selfMessage]);
-        console.log('📤 Sent message:', text);
+        console.log(' Sent message:', text);
       } catch (error) {
-        console.error('❌ Error sending message:', error);
+        console.error(' Error sending message:', error);
       }
     },
     [room]
   );
 
-  // 🗑️ Xóa tin nhắn (tùy chọn)
+  //  Xóa tin nhắn (tùy chọn)
   const clearMessages = useCallback(() => {
     setMessages([]);
   }, []);

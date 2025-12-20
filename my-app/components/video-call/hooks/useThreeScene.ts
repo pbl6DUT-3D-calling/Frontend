@@ -20,7 +20,7 @@ export function useThreeScene(canvasRef: React.RefObject<HTMLCanvasElement>) {
     rendererRef.current = createRenderer(canvasRef.current);
     setupLighting(sceneRef.current);
 
-    // 🆕 Thêm resize handler
+    // Thêm resize handler
     const handleResize = () => {
       if (cameraRef.current && rendererRef.current && canvasRef.current) {
         handleCameraResize(cameraRef.current, rendererRef.current, canvasRef.current);

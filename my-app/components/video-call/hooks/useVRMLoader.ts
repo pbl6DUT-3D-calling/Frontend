@@ -74,8 +74,8 @@ export function useVRMLoader(
         const box = new THREE.Box3().setFromObject(vrm.scene);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        
-        // ✅ AUTO CENTER + MANUAL OFFSET
+      
+        //  AUTO CENTER + MANUAL OFFSET
         const offsetX = -center.x ; 
         const offsetY = 0 ;          
         const offsetZ = -center.z ;  
@@ -93,7 +93,7 @@ export function useVRMLoader(
             y: '0.000',
             z: (-center.z).toFixed(3)
           },
-          manualOffset: { // ⬅️ THÊM log
+          manualOffset: { //  THÊM log
             x: MANUAL_POSITION_OFFSET.x.toFixed(3),
             y: MANUAL_POSITION_OFFSET.y.toFixed(3),
             z: MANUAL_POSITION_OFFSET.z.toFixed(3)

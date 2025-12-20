@@ -17,7 +17,7 @@ export function useRecording() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
-  // 🎥 Ghi màn hình của chính mình
+  // Ghi màn hình của chính mình
   const startScreenRecording = useCallback(async () => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -50,9 +50,9 @@ export function useRecording() {
       setIsRecording(true);
       setRecordingType('screen');
 
-      console.log('✅ Screen recording started');
+      console.log(' Screen recording started');
     } catch (error) {
-      console.error('❌ Failed to start screen recording:', error);
+      console.error(' Failed to start screen recording:', error);
       alert('Failed to start screen recording. Please check permissions.');
     }
   }, []);
@@ -106,14 +106,14 @@ export function useRecording() {
       setIsRecording(true);
       setRecordingType('participant');
 
-      console.log(`✅ Recording participant: ${participant.name}`);
+      console.log(` Recording participant: ${participant.name}`);
     } catch (error) {
-      console.error('❌ Failed to record participant:', error);
+      console.error(' Failed to record participant:', error);
       alert('Failed to record participant.');
     }
   }, [participants]);
 
-  // 🎬 Ghi toàn bộ phòng (composite recording)
+  //  Ghi toàn bộ phòng (composite recording)
   const startFullRoomRecording = useCallback(async () => {
     try {
       // Tạo canvas để composite tất cả video
@@ -214,24 +214,24 @@ export function useRecording() {
 
       drawFrame();
 
-      console.log('✅ Full room recording started');
+      console.log(' Full room recording started');
     } catch (error) {
-      console.error('❌ Failed to start full room recording:', error);
+      console.error(' Failed to start full room recording:', error);
       alert('Failed to start full room recording.');
     }
   }, [participants, room.name]);
 
-  // ⏹️ Dừng ghi
+  //  Dừng ghi
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setRecordingType(null);
-      console.log('⏹️ Recording stopped');
+      console.log(' Recording stopped');
     }
   }, []);
 
-  // 💾 Download file
+  //  Download file
   const downloadRecording = (blob: Blob, baseName: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -246,7 +246,7 @@ export function useRecording() {
       URL.revokeObjectURL(url);
     }, 100);
 
-    console.log(`💾 Recording saved: ${a.download}`);
+    console.log(` Recording saved: ${a.download}`);
   };
 
   return {
