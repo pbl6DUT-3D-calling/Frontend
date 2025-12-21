@@ -76,18 +76,18 @@ export const BACKGROUNDS: BackgroundOption[] = [
     type: "image", 
     value: "/backgrounds/bg1.jpg" 
   },
-  // { 
-  //   id: "bg2", 
-  //   name: "Hình 2", 
-  //   type: "image", 
-  //   value: "/backgrounds/bg2.jpg" 
-  // },
-  // { 
-  //   id: "bg3", 
-  //   name: "Hình 3", 
-  //   type: "image", 
-  //   value: "/backgrounds/bg3.jpg" 
-  // },
+  { 
+    id: "bg2", 
+    name: "Hình 2", 
+    type: "image", 
+    value: "/backgrounds/bg2.jpg" 
+  },
+  { 
+    id: "bg3", 
+    name: "Hình 3", 
+    type: "image", 
+    value: "/backgrounds/bg3.jpg" 
+  },
 ]
 
 interface BackgroundSelectorProps {

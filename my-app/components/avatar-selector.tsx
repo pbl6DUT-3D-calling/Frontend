@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CheckCircle, X, Loader2, Trash2 } from "lucide-react";
 import { modelService } from "@/service/modelService";
+import { DEFAULT_MODEL, getDefaultModelThumbnail } from "@/utils/defaultModel";
 import dynamic from "next/dynamic";
 
 // Lazy load 3D components để tránh SSR và giảm context loss
@@ -30,9 +31,10 @@ interface AvatarSelectorProps {
 }
 
 export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApplyToVideoCall }: AvatarSelectorProps) {
-  const [models, setModels] = useState<ModelItem[]>([]);
+  const [models, setModels] = useState<ModelItem[]>([DEFAULT_MODEL]); // ✅ Initialize with default
   const [selectedModel, setSelectedModel] = useState<ModelItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingThumbnail, setIsLoadingThumbnail] = useState(true); // ✅ Thumbnail loading state
   const [show3DPreview, setShow3DPreview] = useState(false);
   
   // Delete confirmation state
@@ -41,6 +43,22 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
+  // ✅ Pre-load default thumbnail on mount (ONCE)
+  useEffect(() => {
+    const loadDefaultThumbnail = async () => {
+      const thumbnail = await getDefaultModelThumbnail();
+      setModels(prev => prev.map(m => 
+        m.id === DEFAULT_MODEL.id 
+          ? { ...m, thumbnailUrl: thumbnail }
+          : m
+      ));
+      setIsLoadingThumbnail(false);
+    };
+
+    loadDefaultThumbnail();
+  }, []); // Empty deps - only run once
+
+  // ✅ Load user models when dialog opens
   useEffect(() => {
     console.log("AvatarSelector isOpen:", isOpen);
     if (isOpen) {
@@ -56,9 +74,10 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
     setIsLoading(true);
     try {
       const response = await modelService.getUserModels();
-      console.log("Raw API response:", response);
+      console.log("📦 API Response:", response);
+      
       const modelsArray = Array.isArray(response) ? response : (response.models || []);
-      console.log("Models array:", modelsArray);
+      console.log("📋 Models array:", modelsArray);
       
       const convertedModels: ModelItem[] = modelsArray.map((model: any) => ({
         id: model.id?.toString() || crypto.randomUUID(),
@@ -67,10 +86,24 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
         thumbnailUrl: model.thumbnail_url || model.thumbnailUrl || "https://placehold.co/150x150/a78bfa/ffffff?text=VRM",
       }));
 
-      console.log("Converted models:", convertedModels);
-      setModels(convertedModels);
+      console.log("✅ Converted models:", convertedModels);
+
+      // ✅ MERGE: Default model + server models (avoid duplicates)
+      setModels(prev => {
+        const defaultModel = prev.find(m => m.id === DEFAULT_MODEL.id);
+        const serverModels = convertedModels.filter(m => 
+          m.vrmUrl !== DEFAULT_MODEL.vrmUrl && 
+          m.id !== DEFAULT_MODEL.id
+        );
+        
+        return defaultModel 
+          ? [defaultModel, ...serverModels]
+          : [DEFAULT_MODEL, ...serverModels];
+      });
+      
     } catch (error) {
-      console.error("Failed to load models:", error);
+      console.error("❌ Failed to load models:", error);
+      // Keep default model in list even if API fails
     } finally {
       setIsLoading(false);
     }
@@ -141,6 +174,8 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
     setModelToDelete(null);
   };
 
+  const isDefaultModel = (modelId: string) => modelId === DEFAULT_MODEL.id;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 rounded-2xl">
@@ -153,6 +188,7 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
         <div className="flex gap-6 h-[600px]">
           {/* Left Side - Model List */}
           <div className="flex-1 flex flex-col space-y-4">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 max-h-[550px]">
             {/* <div className="space-y-2">
               <Button
                 variant="outline"
@@ -186,11 +222,18 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
                     }`}
                   >
                     <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
-                      <img
-                        src={model.thumbnailUrl}
-                        alt={model.name}
-                        className="w-full h-full object-cover"
-                      />
+                      {/* ✅ Show loading spinner while thumbnail loads */}
+                      {isLoadingThumbnail && model.id === DEFAULT_MODEL.id ? (
+                        <div className="w-full h-full flex items-center justify-center bg-purple-100">
+                          <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                        </div>
+                      ) : (
+                        <img
+                          src={model.thumbnailUrl}
+                          alt={model.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                     </div>
                     <div className="flex-1 text-left">
                       <p className="font-medium text-gray-800 truncate">{model.name}</p>
@@ -200,17 +243,20 @@ export function AvatarSelector({ isOpen, onClose, onSelect, currentAvatar, onApp
                         <CheckCircle className="w-6 h-6 text-purple-600 flex-shrink-0" />
                       )}
                       {/* Delete Button */}
-                      <button
-                        onClick={(e) => handleDeleteClick(e, model)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-lg z-10"
-                        title="Xóa model"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!isDefaultModel(model.id) && (
+                        <button
+                          onClick={(e) => handleDeleteClick(e, model)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-lg shadow-lg z-10"
+                          title="Xóa model"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
               )}
+            </div>
             </div>
           </div>
 

@@ -52,9 +52,9 @@ const VRMVideoPublisherComponent = ({
   const clockRef = useRef(new THREE.Clock());
   
   const { currentVrm, setCurrentVrm } = useVRM();
-  const { selectedModelUrl } = useModel(); // ⬅️ THÊM: Lấy URL từ context
+  const { selectedModelUrl } = useModel(); 
   
-  const [isLoadingVRM, setIsLoadingVRM] = useState(false); // ⬅️ THÊM
+  const [isLoadingVRM, setIsLoadingVRM] = useState(false);
 
   // Setup Three.js scene
   const { scene, renderer, camera } = useThreeScene(webglCanvasRef);
@@ -108,7 +108,6 @@ const VRMVideoPublisherComponent = ({
   // Setup webcam
   const { isCameraReady } = useWebcamStream(videoRef, webcamStream);
 
-  // ⬅️ THÊM: Load VRM từ selectedModelUrl
   useEffect(() => {
     if (!scene || !camera || !selectedModelUrl) {
       return;
@@ -208,7 +207,7 @@ const VRMVideoPublisherComponent = ({
     enabled,
     isCameraReady,
     webcamStream,
-    isLoadingVRM, // ⬅️ THAY ĐỔI: Dùng isLoadingVRM thay vì false
+    isLoadingVRM, 
     currentVrm,
     renderer,
     scene,
@@ -256,11 +255,11 @@ const VRMVideoPublisherComponent = ({
         height={CANVAS_CONFIG.HEIGHT}
        style={{ 
         transform: 'scaleX(-1)',
-        width: '100%', // ⬅️ THÊM: Responsive
-        height: 'auto', // ⬅️ THÊM: Giữ aspect ratio
+        width: '100%',
+        height: 'auto', 
         maxWidth: `${CANVAS_CONFIG.WIDTH}px`,
         maxHeight: `${CANVAS_CONFIG.HEIGHT}px`,
-        objectFit: 'contain' // ⬅️ THÊM
+        objectFit: 'contain' 
       }}
       />
 
@@ -277,8 +276,8 @@ const VRMVideoPublisherComponent = ({
           enabled={enabled}
           isCameraReady={isCameraReady}
           hasVRM={!!currentVrm}
-          isLoadingVRM={isLoadingVRM} // ⬅️ THÊM
-          selectedModelUrl={selectedModelUrl} // ⬅️ THÊM
+          isLoadingVRM={isLoadingVRM} 
+          selectedModelUrl={selectedModelUrl} 
           aiConnected={isConnected}
           aiReady={isReady}
           webcamStream={webcamStream}
@@ -286,12 +285,11 @@ const VRMVideoPublisherComponent = ({
         />
       )}
 
-      {isLoadingVRM && <LoadingOverlay />} {/* ⬅️ THÊM */}
+      {isLoadingVRM && <LoadingOverlay />} 
     </>
   );
 };
 
-// ⬅️ CẬP NHẬT Debug Panel
 function DebugPanel({
   enabled,
   isCameraReady,
@@ -306,8 +304,8 @@ function DebugPanel({
   enabled: boolean;
   isCameraReady: boolean;
   hasVRM: boolean;
-  isLoadingVRM: boolean; // ⬅️ THÊM
-  selectedModelUrl: string | null; // ⬅️ THÊM
+  isLoadingVRM: boolean; 
+  selectedModelUrl: string | null; 
   aiConnected: boolean;
   aiReady: boolean;
   webcamStream: MediaStream | null;

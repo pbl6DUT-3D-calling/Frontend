@@ -42,7 +42,6 @@ export const VRM_POSITIONING = {
   HORIZONTAL_PADDING: 0.05,   // 5% padding trái/phải
   LOOK_AT_OFFSET_Y: 0.75,     // Nhìn vào 75% chiều cao
   
-  // ⬅️ THÊM: Horizontal centering adjustment (nếu model vẫn lệch)
   // Giá trị âm = dịch sang trái, dương = dịch sang phải
   // Đơn vị là % của chiều rộng model
   HORIZONTAL_OFFSET_PERCENT: 0.1,  // 0% = center hoàn toàn

@@ -589,9 +589,8 @@ export function VideoCallRoom() {
             className="aspect-video bg-muted rounded-lg overflow-hidden relative"
             style={{
               background: background.type === "image" 
-                ? `url(${background.value}) center/cover no-repeat` 
-                : background.value,
-              backgroundColor: background.type === "image" ? "#333" : undefined
+                ? `#333 url(${background.value}) center/cover no-repeat` 
+                : background.value
             }}
           >
             {isInCall && (

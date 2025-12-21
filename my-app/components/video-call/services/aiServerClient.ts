@@ -42,7 +42,7 @@ export class AIServerClient {
         this.ws = new WebSocket(this.serverUrl);
 
         this.ws.onopen = () => {
-          console.log('✅ Connected to AI Server');
+          console.log(' Connected to AI Server');
           this.isConnecting = false;
           this.onConnect?.();
           resolve();
@@ -58,7 +58,7 @@ export class AIServerClient {
         };
 
         this.ws.onerror = (error) => {
-          console.error('❌ AI Server WebSocket error:', error);
+          console.error(' AI Server WebSocket error:', error);
           this.isConnecting = false;
           this.onError?.(error);
           reject(error);
@@ -83,7 +83,7 @@ export class AIServerClient {
     }
 
     this.reconnectTimeout = setTimeout(() => {
-      console.log('🔄 Attempting to reconnect to AI Server...');
+      console.log(' Attempting to reconnect to AI Server...');
       this.connect().catch(console.error);
     }, 3000);
   }
@@ -92,7 +92,7 @@ export class AIServerClient {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(base64Image);
     } else {
-      console.warn('⚠️ WebSocket not connected, cannot send frame');
+      console.warn(' WebSocket not connected, cannot send frame');
     }
   }
 

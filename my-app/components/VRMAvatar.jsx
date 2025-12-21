@@ -336,44 +336,52 @@ export const VRMAvatar = ({
     }
   }, [riggedFaceFromContext]);
 
-  const levaControls = useControls(
-    "VRM", 
-    {
-      aa: { value: 0, min: 0, max: 1 },
-      ih: { value: 0, min: 0, max: 1 },
-      ee: { value: 0, min: 0, max: 1 },
-      oh: { value: 0, min: 0, max: 1 },
-      ou: { value: 0, min: 0, max: 1 },
-      blinkLeft: { value: 0, min: 0, max: 1 },
-      blinkRight: { value: 0, min: 0, max: 1 },
-      angry: { value: 0, min: 0, max: 1 },
-      sad: { value: 0, min: 0, max: 1 },
-      happy: { value: 0, min: 0, max: 1 },
-      relaxed: { value: 0, min: 0, max: 1 },
-      lookDown: { value: 0, min: 0, max: 1 },
-      animation: {
-        options: ["None", "Idle", "Swing Dancing", "Thriller Part 2"],
-        value: "Idle",
-      },
-    },
-    { hidden: hideControls }
-  );
+  // const levaControls = useControls(
+  //   "VRM", 
+  //   {
+  //     aa: { value: 0, min: 0, max: 1 },
+  //     ih: { value: 0, min: 0, max: 1 },
+  //     ee: { value: 0, min: 0, max: 1 },
+  //     oh: { value: 0, min: 0, max: 1 },
+  //     ou: { value: 0, min: 0, max: 1 },
+  //     blinkLeft: { value: 0, min: 0, max: 1 },
+  //     blinkRight: { value: 0, min: 0, max: 1 },
+  //     angry: { value: 0, min: 0, max: 1 },
+  //     sad: { value: 0, min: 0, max: 1 },
+  //     happy: { value: 0, min: 0, max: 1 },
+  //     relaxed: { value: 0, min: 0, max: 1 },
+  //     lookDown: { value: 0, min: 0, max: 1 },
+  //     animation: {
+  //       options: ["None", "Idle", "Swing Dancing", "Thriller Part 2"],
+  //       value: "Idle",
+  //     },
+  //   },
+  //   { hidden: hideControls }
+  // );
 
   // Use external controls if provided, otherwise use Leva
-  const aa = externalExpressions.aa ?? levaControls.aa;
-  const ih = externalExpressions.ih ?? levaControls.ih;
-  const ee = externalExpressions.ee ?? levaControls.ee;
-  const oh = externalExpressions.oh ?? levaControls.oh;
-  const ou = externalExpressions.ou ?? levaControls.ou;
-  const blinkLeft = externalExpressions.blinkLeft ?? levaControls.blinkLeft;
-  const blinkRight = externalExpressions.blinkRight ?? levaControls.blinkRight;
-  const angry = externalExpressions.angry ?? levaControls.angry;
-  const sad = externalExpressions.sad ?? levaControls.sad;
-  const happy = externalExpressions.happy ?? levaControls.happy;
-  const relaxed = externalExpressions.relaxed ?? levaControls.relaxed;
-  const lookDown = externalExpressions.lookDown ?? levaControls.lookDown;
-  const animation = externalAnimation ?? levaControls.animation;
+  // const aa = externalExpressions.aa ?? levaControls.aa;
+  // const ih = externalExpressions.ih ?? levaControls.ih;
+  // const ee = externalExpressions.ee ?? levaControls.ee;
+  // const oh = externalExpressions.oh ?? levaControls.oh;
+  // const ou = externalExpressions.ou ?? levaControls.ou;
+  // const blinkLeft = externalExpressions.blinkLeft ?? levaControls.blinkLeft;
+  // const blinkRight = externalExpressions.blinkRight ?? levaControls.blinkRight;
+  // const angry = externalExpressions.angry ?? levaControls.angry;
+  // const sad = externalExpressions.sad ?? levaControls.sad;
+  // const happy = externalExpressions.happy ?? levaControls.happy;
+  // const relaxed = externalExpressions.relaxed ?? levaControls.relaxed;
+  // const lookDown = externalExpressions.lookDown ?? levaControls.lookDown;
+  // const animation = externalAnimation ?? levaControls.animation;
 
+
+  const animation = externalAnimation ?? "Idle"; // Mặc định "Idle"
+  const angry = externalExpressions.angry ?? 0;
+  const sad = externalExpressions.sad ?? 0;
+  const happy = externalExpressions.happy ?? 0;
+  const relaxed = externalExpressions.relaxed ?? 0;
+  const lookDown = externalExpressions.lookDown ?? 0;
+  
   useEffect(() => {
     if (animation === "None") {
       return;

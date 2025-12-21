@@ -22,6 +22,7 @@ import { Upload, Plus, CheckCircle, X, Trash2 } from "lucide-react"
 import { modelService } from "@/service/modelService" // Import model service
 import { AvatarSelector } from "@/components/avatar-selector" // Import AvatarSelector
 import { useModelActions } from "@/context/modelContext" // 🔄 Import ONLY Actions (không re-render khi state thay đổi)
+import { DEFAULT_MODEL } from "@/utils/defaultModel" // Import default model constant
 // Sửa: Đã xóa import tĩnh
 // import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm" 
 
@@ -113,15 +114,7 @@ export function VRMStudio() {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // === State ===
-  const [modelList, setModelList] = useState<ModelItem[]>([
-    // Thêm một model mặc định
-    {
-      id: "local-default-1",
-      name: "Default Model",
-      vrmUrl: "models/7667029464206216702.vrm",
-      thumbnailUrl: "https://placehold.co/150x150/06b6d4/ffffff?text=M1"
-    }
-  ]);
+  const [modelList, setModelList] = useState<ModelItem[]>([DEFAULT_MODEL]); // ✅ Use constant
   
   const [currentVrmUrl, setCurrentVrmUrl] = useState<string | null>(() => {
     // ✅ Đọc từ localStorage (preview model riêng)
@@ -132,10 +125,9 @@ export function VRMStudio() {
         return savedUrl;
       }
     }
-    // ✅ Fallback về default model (hardcoded để tránh lỗi closure)
-    const defaultModelUrl = "models/7667029464206216702.vrm";
-    console.log('🎯 Using default model:', defaultModelUrl);
-    return defaultModelUrl;
+    // ✅ Fallback về DEFAULT_MODEL constant
+    console.log('🎯 Using default model:', DEFAULT_MODEL.vrmUrl);
+    return DEFAULT_MODEL.vrmUrl;
   });
   const [selectedInModal, setSelectedInModal] = useState<string | null>(
     modelList[0]?.id || null
@@ -278,7 +270,11 @@ export function VRMStudio() {
 
         setModelList(prev => {
           const existingIds = new Set(prev.map(m => m.id));
-          const uniqueNewModels = convertedModels.filter(m => !existingIds.has(m.id));
+          const existingUrls = new Set(prev.map(m => m.vrmUrl));
+
+          const uniqueNewModels = convertedModels.filter(m => 
+            !existingIds.has(m.id) && !existingUrls.has(m.vrmUrl)
+          );
           return [...prev, ...uniqueNewModels];
         });
         

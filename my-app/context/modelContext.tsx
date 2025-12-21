@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react'
+import { DEFAULT_MODEL } from '@/utils/defaultModel'
 
 interface ModelStateType {
   selectedModelUrl: string
@@ -15,10 +16,6 @@ interface ModelActionsType {
 const ModelStateContext = createContext<ModelStateType | undefined>(undefined)
 const ModelActionsContext = createContext<ModelActionsType | undefined>(undefined)
 
-// ✅ Model mặc định từ vrm-studio
-const DEFAULT_MODEL_URL = "models/7667029464206216702.vrm";
-const DEFAULT_MODEL_NAME = "Default Model";
-
 // ✅ LocalStorage keys
 const STORAGE_KEYS = {
   MODEL_URL: 'pbl6_selected_model_url',
@@ -26,19 +23,19 @@ const STORAGE_KEYS = {
 } as const;
 
 export function ModelProvider({ children }: { children: ReactNode }) {
-  // ✅ Initialize từ localStorage (nếu có), không thì dùng default
+  // ✅ Initialize từ localStorage (nếu có), không thì dùng DEFAULT_MODEL constant
   const [selectedModelUrl, setSelectedModelUrl] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEYS.MODEL_URL) || DEFAULT_MODEL_URL;
+      return localStorage.getItem(STORAGE_KEYS.MODEL_URL) || DEFAULT_MODEL.vrmUrl;
     }
-    return DEFAULT_MODEL_URL;
+    return DEFAULT_MODEL.vrmUrl;
   });
 
   const [selectedModelName, setSelectedModelName] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || DEFAULT_MODEL_NAME;
+      return localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || DEFAULT_MODEL.name;
     }
-    return DEFAULT_MODEL_NAME;
+    return DEFAULT_MODEL.name;
   });
 
   // ✅ Sync to localStorage khi state thay đổi

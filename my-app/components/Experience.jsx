@@ -51,34 +51,33 @@ export const Experience = ({ modelUrl, sceneBackground = "#333", filter = "none"
         />
       </group>
 
-      {/* Post-processing Effects */}
-      {filter !== "none" && (
-        <EffectComposer>
-          {filter === "bloom" && (
-            <Bloom 
-              intensity={1.5} 
-              luminanceThreshold={0.3} 
-              luminanceSmoothing={0.9}
-              mipmapBlur
-            />
-          )}
-          {filter === "vintage" && (
-            <>
-              <HueSaturation saturation={-0.3} />
-              <BrightnessContrast brightness={0.05} contrast={0.1} />
-            </>
-          )}
-          {filter === "bw" && (
-            <HueSaturation saturation={-1} />
-          )}
-          {filter === "sepia" && (
-            <>
-              <HueSaturation hue={0.1} saturation={-0.5} />
-              <BrightnessContrast brightness={0.1} contrast={0.05} />
-            </>
-          )}
-        </EffectComposer>
-      )}
+      {/* Post-processing Effects - Always render to ensure buffer clear */}
+      <EffectComposer>
+        {filter === "bloom" && (
+          <Bloom 
+            intensity={1.5} 
+            luminanceThreshold={0.3} 
+            luminanceSmoothing={0.9}
+            mipmapBlur
+          />
+        )}
+        {filter === "vintage" && (
+          <>
+            <HueSaturation saturation={-0.3} />
+            <BrightnessContrast brightness={0.05} contrast={0.1} />
+          </>
+        )}
+        {filter === "bw" && (
+          <HueSaturation saturation={-1} />
+        )}
+        {filter === "sepia" && (
+          <>
+            <HueSaturation hue={0.1} saturation={-0.5} />
+            <BrightnessContrast brightness={0.1} contrast={0.05} />
+          </>
+        )}
+        {/* filter === "none": Empty EffectComposer still clears buffer properly */}
+      </EffectComposer>
     </>
   );
 };

@@ -73,7 +73,7 @@ export function adjustCameraForVRM(
     center: { x: center.x.toFixed(2), y: center.y.toFixed(2), z: center.z.toFixed(2) }
   });
   
-  // ⬅️ Tính vùng visible theo TỈ LỆ %
+  // Tính vùng visible theo TỈ LỆ %
   const fromHeight = VRM_POSITIONING.VISIBLE_FROM_HEIGHT;
   const toHeight = VRM_POSITIONING.VISIBLE_TO_HEIGHT;
   
@@ -91,7 +91,7 @@ export function adjustCameraForVRM(
     centerY: visibleCenterY.toFixed(2)
   });
   
-  // ⬅️ Tính khoảng cách camera theo TỈ LỆ
+  // Tính khoảng cách camera theo TỈ LỆ
   const fovRad = (camera.fov * Math.PI) / 180;
   const paddingFactor = 1 + VRM_POSITIONING.VERTICAL_PADDING;
   
@@ -100,7 +100,7 @@ export function adjustCameraForVRM(
   // Zoom in factor
   distance = distance * 0.75;
   
-  // ⬅️ Tính horizontal offset theo TỈ LỆ % (nếu model lệch)
+  //  Tính horizontal offset theo TỈ LỆ % (nếu model lệch)
   const horizontalOffset = size.x * VRM_POSITIONING.HORIZONTAL_OFFSET_PERCENT + 0.1;
   
   console.log('📐 Camera calculation (proportional):', {
@@ -114,14 +114,12 @@ export function adjustCameraForVRM(
     horizontalOffsetValue: horizontalOffset.toFixed(3)
   });
   
-  // ⬅️ Đặt camera với horizontal offset (nếu cần)
   camera.position.set(
     horizontalOffset,  // X offset theo tỉ lệ %
     visibleCenterY,    // Y = center vùng visible
     distance           // Z = khoảng cách tính toán
   );
   
-  // ⬅️ Look at cũng theo tỉ lệ
   camera.lookAt(horizontalOffset, visibleCenterY, 0);
   
   console.log('📷 Final camera (proportional):', {
